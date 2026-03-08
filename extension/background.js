@@ -6,7 +6,7 @@
  * that content scripts face on third-party pages.
  */
 
-const API_BASE = "optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
+const API_BASE = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
 
 /* ------------------------------------------------------------------ */
 /* Message router                                                      */

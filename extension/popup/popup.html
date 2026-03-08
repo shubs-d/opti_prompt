@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>OptiPrompt</title>
+</head>
+<body>
+  <header class="header">
+    <div>
+      <div class="logo">⚡ <span>OptiPrompt</span></div>
+      <div class="subtle">Prompt Compiler &amp; Evaluation Engine</div>
+    </div>
+    <div class="header-right">
+      <div class="status-dot" id="statusDot" title="Checking backend…"></div>
+    </div>
+  </header>
+
+  <nav class="tab-bar">
+    <button class="tab active" data-tab="optimize">Optimize</button>
+    <button class="tab" data-tab="templates">Templates</button>
+    <button class="tab" data-tab="stats">Stats</button>
+  </nav>
+
+  <section class="tab-content active" id="tab-optimize">
+    <div class="card quality-card">
+      <div class="quality-header">
+        <div>
+          <div class="label">Prompt Quality</div>
+          <div class="quality-score" id="qualityScore">0</div>
+        </div>
+        <div class="quality-badge" id="qualityBadge">Needs work</div>
+      </div>
+      <div class="quality-grid">
+        <div><span>Clarity</span><strong id="qClarity">0</strong></div>
+        <div><span>Specificity</span><strong id="qSpecificity">0</strong></div>
+        <div><span>Structure</span><strong id="qStructure">0</strong></div>
+        <div><span>Efficiency</span><strong id="qEfficiency">0</strong></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label" for="prompt">Prompt</label>
+      <textarea id="prompt" rows="6" placeholder="Paste or write your prompt here…"></textarea>
+    </div>
+
+    <div class="card hidden" id="templateSuggestionCard">
+      <div class="suggestion-row">
+        <div>
+          <div class="label">Template Suggestion</div>
+          <div class="subtle" id="templateSuggestionText">This prompt looks reusable.</div>
+        </div>
+        <button class="btn-small btn-primary" id="btnCreateSuggestedTemplate">Create Template</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label">Mode</label>
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="optimize">⚡ Optimize</button>
+        <button class="mode-btn" data-mode="enhance">✨ Enhance</button>
+        <button class="mode-btn" data-mode="both">⚡✨ Both</button>
+      </div>
+      <div class="toggle-grid">
+        <label class="toggle-item">
+          <input type="checkbox" id="autoMode" checked />
+          <span>Auto aggressiveness</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="autoOptimizeToggle" />
+          <span>Auto optimize while typing</span>
+        </label>
+      </div>
+      <div class="slider-inline" id="aggrGroup">
+        <input type="range" id="aggr" min="0.05" max="0.95" step="0.05" value="0.3" disabled />
+        <span class="slider-val" id="aggrVal">auto</span>
+      </div>
+    </div>
+
+    <div class="card action-card">
+      <button class="btn-primary full" id="btnOptimize">
+        <span id="btnText">Optimize Prompt</span>
+        <span class="spinner hidden" id="btnSpinner"></span>
+      </button>
+    </div>
+
+    <div class="error-banner hidden" id="errorBanner"></div>
+
+    <div class="card hidden" id="results">
+      <div class="result-header">
+        <span class="badge badge-intent" id="intentBadge"></span>
+        <span class="meta" id="intentMeta"></span>
+      </div>
+
+      <div class="metrics-grid metrics-grid-5">
+        <div class="metric-card">
+          <div class="metric-value" id="mTokensBefore">—</div>
+          <div class="metric-label">Tokens Before</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="mTokensAfter">—</div>
+          <div class="metric-label">Tokens After</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="mReduction">—</div>
+          <div class="metric-label">Compression</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="mSimilarity">—</div>
+          <div class="metric-label">Similarity</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="mDensity">—</div>
+          <div class="metric-label">Density</div>
+        </div>
+      </div>
+
+      <div class="metric-card decision-card" id="mDecisionCard">
+        <div class="metric-value" id="mDecision">—</div>
+        <div class="metric-label">Decision</div>
+      </div>
+
+      <div class="split-view">
+        <div>
+          <label class="label">Original Prompt</label>
+          <div class="output-box muted-box" id="originalOutput"></div>
+        </div>
+        <div>
+          <label class="label">Optimized Prompt</label>
+          <div class="output-box" id="compressedOutput"></div>
+        </div>
+      </div>
+
+      <label class="label">Prompt Diff</label>
+      <div class="diff-box" id="diffOutput"></div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" id="btnCopy">📋 Copy</button>
+        <button class="btn-secondary btn-success" id="btnReplace">✅ Replace in Chat</button>
+      </div>
+
+      <div class="success-overlay hidden" id="successOverlay">
+        <div class="success-checkmark">✓</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-templates">
+    <div class="card">
+      <div class="templates-header">
+        <label class="label">Reusable Templates</label>
+        <div class="button-row">
+          <button class="btn-small btn-secondary" id="btnImportTemplates">Import</button>
+          <button class="btn-small btn-secondary" id="btnExportTemplates">Export</button>
+          <button class="btn-small btn-primary" id="btnNewTemplate">+ New</button>
+        </div>
+      </div>
+      <div id="templateList" class="template-list">
+        <div class="empty-state">No templates yet. Create one to get started.</div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="templateEditor">
+      <label class="label">Template Name</label>
+      <input type="text" id="tplName" class="input" placeholder="e.g. Exam Solver" />
+
+      <label class="label space-top">Template Prompt</label>
+      <textarea id="tplPrompt" rows="5" placeholder="Use {{variable_name}} placeholders…"></textarea>
+      <p class="hint">Example: Answer every question in {{question_paper}} step by step.</p>
+
+      <div class="result-actions compact-top">
+        <button class="btn-secondary" id="btnCancelTemplate">Cancel</button>
+        <button class="btn-primary" id="btnSaveTemplate">Save Template</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="variableFillDialog">
+      <label class="label">Fill Template Variables</label>
+      <div id="variableInputs"></div>
+      <div class="result-actions compact-top">
+        <button class="btn-secondary" id="btnCancelFill">Cancel</button>
+        <button class="btn-primary" id="btnApplyTemplate">Apply Template</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-stats">
+    <div class="card">
+      <label class="label">Usage Overview</label>
+      <div class="stats-grid stats-grid-5">
+        <div class="stat-card">
+          <div class="stat-value" id="statPrompts">0</div>
+          <div class="stat-label">Optimized</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTokens">0</div>
+          <div class="stat-label">Tokens Saved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statCompression">0%</div>
+          <div class="stat-label">Avg Compression</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTemplates">0</div>
+          <div class="stat-label">Templates Used</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statLifetime">0</div>
+          <div class="stat-label">Lifetime Usage</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label">Token Savings Timeline</label>
+      <div class="chart-container" id="chartContainer">
+        <div class="empty-state">No optimization history yet.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="history-header">
+        <label class="label">Recent Prompt History</label>
+        <button class="btn-small btn-danger" id="btnClearHistory">Clear</button>
+      </div>
+      <div id="historyList" class="history-list">
+        <div class="empty-state">No history yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <input type="file" id="templateImportInput" class="hidden" accept="application/json" />
+
+  <script src="popup.js"></script>
+</body>
+</html>

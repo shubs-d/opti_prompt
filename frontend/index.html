@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Context Optimizer</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --bg: #0f111a;
+      --surface: #1a1d2e;
+      --border: #2a2d3e;
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --mono: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: .25rem;
+    }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 600;
+    }
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .75rem;
+      font-family: var(--mono);
+      font-size: .85rem;
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .slider-group label { font-size: .85rem; color: var(--muted); }
+    input[type="range"] {
+      accent-color: var(--accent);
+      width: 140px;
+    }
+    .slider-val {
+      font-family: var(--mono);
+      font-size: .85rem;
+      min-width: 2.5rem;
+      text-align: right;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .6rem 1.4rem;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .badge {
+      display: inline-block;
+      padding: .2rem .6rem;
+      border-radius: 6px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .badge-approve  { background: #16532d; color: var(--green); }
+    .badge-reject   { background: #531616; color: var(--red); }
+    .badge-conservative { background: #533e16; color: var(--yellow); }
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      padding: .4rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .85rem;
+    }
+    .metric-row:last-child { border: none; }
+    .metric-label { color: var(--muted); }
+    .metric-value { font-family: var(--mono); font-weight: 600; }
+    .diff-section { margin-bottom: .75rem; }
+    .diff-section h3 { font-size: .8rem; color: var(--muted); margin-bottom: .4rem; text-transform: uppercase; }
+    .diff-item {
+      font-family: var(--mono);
+      font-size: .8rem;
+      padding: .3rem .5rem;
+      border-radius: 4px;
+      margin-bottom: .25rem;
+      word-break: break-word;
+    }
+    .diff-removed { background: #3b1515; color: #fca5a5; }
+    .diff-preserved { background: #153b1f; color: #86efac; }
+    .diff-rewritten { background: #3b3015; color: #fde68a; }
+    pre.output {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .75rem;
+      font-family: var(--mono);
+      font-size: .82rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 320px;
+      overflow-y: auto;
+      color: var(--text);
+    }
+    .full-width { grid-column: 1 / -1; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #fff4;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      margin-right: .4rem;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+    #history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+    }
+    #history-table th, #history-table td {
+      text-align: left;
+      padding: .45rem .5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    #history-table th { color: var(--muted); font-weight: 600; }
+    #history-table td { font-family: var(--mono); }
+    .truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+
+<body>
+  <div style="max-width:1200px;margin:0 auto;">
+    <h1>⚡ LLM Context Optimizer</h1>
+    <p class="subtitle">Compress prompts via token-level surprisal scoring</p>
+  </div>
+
+  <div class="grid">
+    <!-- INPUT -->
+    <div class="card">
+      <h2>Input Prompt</h2>
+      <textarea id="prompt" placeholder="Paste your prompt here…"></textarea>
+      <div class="controls">
+        <div class="slider-group">
+          <label for="autoMode">
+            <input type="checkbox" id="autoMode" checked onchange="toggleAutoMode()" />
+            Auto
+          </label>
+        </div>
+        <div class="slider-group" id="aggrGroup">
+          <label for="aggr">Aggressiveness</label>
+          <input type="range" id="aggr" min="0" max="1" step="0.05" value="0.3" disabled />
+          <span class="slider-val" id="aggrVal">auto</span>
+        </div>
+        <button id="btn" onclick="run()">Optimize &amp; Store</button>
+      </div>
+    </div>
+
+    <!-- COMPRESSED OUTPUT -->
+    <div class="card">
+      <h2>Compressed Prompt</h2>
+      <pre class="output" id="compressed">—</pre>
+    </div>
+
+    <!-- METRICS -->
+    <div class="card">
+      <h2>Metrics</h2>
+      <div id="metrics">
+        <div class="metric-row"><span class="metric-label">Intent</span><span class="metric-value" id="m-intent">—</span></div>
+        <div class="metric-row"><span class="metric-label">Intent Confidence</span><span class="metric-value" id="m-intent-conf">—</span></div>
+        <div class="metric-row"><span class="metric-label">Aggressiveness Used</span><span class="metric-value" id="m-aggr-used">—</span></div>
+        <div class="metric-row"><span class="metric-label">Auto Mode</span><span class="metric-value" id="m-auto">—</span></div>
+        <div class="metric-row"><span class="metric-label">Token Reduction</span><span class="metric-value" id="m-reduction">—</span></div>
+        <div class="metric-row"><span class="metric-label">Semantic Similarity</span><span class="metric-value" id="m-similarity">—</span></div>
+        <div class="metric-row"><span class="metric-label">Drift Score</span><span class="metric-value" id="m-drift">—</span></div>
+        <div class="metric-row"><span class="metric-label">Length Ratio</span><span class="metric-value" id="m-lenratio">—</span></div>
+        <div class="metric-row"><span class="metric-label">Decision</span><span class="metric-value" id="m-decision">—</span></div>
+      </div>
+    </div>
+
+    <!-- DIFF -->
+    <div class="card">
+      <h2>Diff</h2>
+      <div id="diff-container">
+        <p style="color:var(--muted);font-size:.85rem;">Run an optimization to see the diff.</p>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="card full-width">
+      <h2>Prompt History <button style="font-size:.75rem;padding:.3rem .8rem;margin-left:.5rem;" onclick="loadHistory()">Refresh</button></h2>
+      <div style="overflow-x:auto;">
+        <table id="history-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Version</th>
+              <th>Original</th>
+              <th>Intent</th>
+              <th>Aggr</th>
+              <th>Reduction</th>
+              <th>Drift</th>
+              <th>Decision</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="9" style="color:var(--muted);">No records yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+const qs = new URLSearchParams(window.location.search);
+const apiOverride = qs.get("api");
+const sameOrigin = window.location.origin && window.location.origin.startsWith("http");
+const API = apiOverride || (sameOrigin ? window.location.origin : "http://127.0.0.1:8000");
+const aggrSlider = document.getElementById("aggr");
+const aggrVal = document.getElementById("aggrVal");
+const autoCheckbox = document.getElementById("autoMode");
+
+aggrSlider.addEventListener("input", () => { aggrVal.textContent = parseFloat(aggrSlider.value).toFixed(2); });
+
+function toggleAutoMode() {
+  const isAuto = autoCheckbox.checked;
+  aggrSlider.disabled = isAuto;
+  aggrVal.textContent = isAuto ? "auto" : parseFloat(aggrSlider.value).toFixed(2);
+}
+
+async function run() {
+  const prompt = document.getElementById("prompt").value.trim();
+  if (!prompt) return alert("Enter a prompt first.");
+  const btn = document.getElementById("btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Processing…';
+
+  try {
+    const res = await fetch(API + "/optimize-and-store", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        aggressiveness: autoCheckbox.checked ? null : parseFloat(aggrSlider.value),
+        auto_aggressiveness: autoCheckbox.checked,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Unknown error");
+    const d = json.data;
+
+    // compressed
+    document.getElementById("compressed").textContent = d.compressed_prompt;
+
+    // intent
+    const intent = d.intent || {};
+    document.getElementById("m-intent").textContent = intent.intent || "—";
+    document.getElementById("m-intent-conf").textContent = intent.intent_confidence != null ? intent.intent_confidence.toFixed(4) : "—";
+    document.getElementById("m-aggr-used").textContent = intent.aggressiveness_used != null ? intent.aggressiveness_used.toFixed(4) : "—";
+    document.getElementById("m-auto").textContent = intent.auto_mode != null ? (intent.auto_mode ? "Yes" : "No") : "—";
+
+    // metrics
+    document.getElementById("m-reduction").textContent = d.token_reduction_percent.toFixed(2) + "%";
+    document.getElementById("m-similarity").textContent = d.evaluation.semantic_similarity.toFixed(4);
+    document.getElementById("m-drift").textContent = d.evaluation.drift_score.toFixed(4);
+    document.getElementById("m-lenratio").textContent = d.evaluation.length_ratio.toFixed(4);
+
+    const dec = d.decision.decision;
+    const badge = document.getElementById("m-decision");
+    badge.innerHTML = `<span class="badge badge-${dec === 'APPROVE' ? 'approve' : dec === 'REJECT' ? 'reject' : 'conservative'}">${dec}</span>`;
+
+    // diff
+    renderDiff(d.diff);
+    loadHistory();
+  } catch (e) {
+    const blocked = String(e.message || "").toLowerCase().includes("failed to fetch");
+    if (blocked) {
+      alert(
+        "Request blocked by browser/extension. Try one of these:\n" +
+        "1) Open frontend from same origin: http://127.0.0.1:8000/frontend/\n" +
+        "2) Disable ad-block/privacy shield for localhost\n" +
+        "3) Reload page after allowing localhost requests"
+      );
+    } else {
+      alert("Error: " + e.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "Optimize &amp; Store";
+  }
+}
+
+function renderDiff(diff) {
+  const c = document.getElementById("diff-container");
+  let html = "";
+  if (diff.removed.length) {
+    html += '<div class="diff-section"><h3>Removed</h3>';
+    diff.removed.forEach(l => { html += `<div class="diff-item diff-removed">− ${esc(l)}</div>`; });
+    html += "</div>";
+  }
+  if (diff.rewritten.length) {
+    html += '<div class="diff-section"><h3>Rewritten</h3>';
+    diff.rewritten.forEach(r => {
+      html += `<div class="diff-item diff-rewritten">⟵ ${esc(r.original)}</div>`;
+      html += `<div class="diff-item diff-preserved">⟶ ${esc(r.compressed)}</div>`;
+    });
+    html += "</div>";
+  }
+  if (diff.preserved.length) {
+    html += '<div class="diff-section"><h3>Preserved</h3>';
+    diff.preserved.forEach(l => { html += `<div class="diff-item diff-preserved">  ${esc(l)}</div>`; });
+    html += "</div>";
+  }
+  c.innerHTML = html || '<p style="color:var(--muted);font-size:.85rem;">No diff data.</p>';
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch(API + "/prompts");
+    const json = await res.json();
+    const tbody = document.getElementById("history-body");
+    if (!json.success || !json.data || !json.data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);">No records yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = json.data.slice().reverse().map(r => `
+      <tr>
+        <td>${esc(r.id)}</td>
+        <td>v${r.version}</td>
+        <td class="truncate" title="${esc(r.original_prompt)}">${esc(r.original_prompt)}</td>
+        <td>${r.intent || '—'}</td>
+        <td>${r.aggressiveness_used != null ? r.aggressiveness_used.toFixed(2) : '—'}</td>
+        <td>${r.token_reduction_percent.toFixed(2)}%</td>
+        <td>${r.drift_score.toFixed(4)}</td>
+        <td><span class="badge badge-${r.decision === 'APPROVE' ? 'approve' : r.decision === 'REJECT' ? 'reject' : 'conservative'}">${esc(r.decision)}</span></td>
+        <td>${new Date(r.created_at).toLocaleString()}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    console.error("History load failed:", e);
+    const tbody = document.getElementById("history-body");
+    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--red);">Cannot load history. Open UI via http://127.0.0.1:8000/frontend/ or disable blocker for localhost.</td></tr>';
+  }
+}
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// load history on page load
+loadHistory();
+</script>
+</body>
+</html>

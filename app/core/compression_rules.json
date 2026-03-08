@@ -1,0 +1,365 @@
+{
+  "_comment": "Phrase-level compression rules. Each entry maps a verbose pattern (regex) to a concise replacement.",
+  "rules": [
+    {
+      "pattern": "\\bcan you (please )?explain\\b",
+      "replacement": "explain",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bcould you (please )?explain\\b",
+      "replacement": "explain",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bI would like you to describe\\b",
+      "replacement": "describe",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bI would like you to explain\\b",
+      "replacement": "explain",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bI would like you to provide\\b",
+      "replacement": "provide",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bcan you (please )?provide\\b",
+      "replacement": "provide",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bcould you (please )?provide\\b",
+      "replacement": "provide",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bcan you (please )?help me (with|to|understand)\\b",
+      "replacement": "help with",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bcould you (please )?help me (with|to|understand)\\b",
+      "replacement": "help with",
+      "category": "polite_request"
+    },
+    {
+      "pattern": "\\bI was wondering if you could\\b",
+      "replacement": "",
+      "category": "hedging"
+    },
+    {
+      "pattern": "\\bI am wondering if you could\\b",
+      "replacement": "",
+      "category": "hedging"
+    },
+    {
+      "pattern": "\\bI'm wondering if you could\\b",
+      "replacement": "",
+      "category": "hedging"
+    },
+    {
+      "pattern": "\\bwould it be possible for you to\\b",
+      "replacement": "",
+      "category": "hedging"
+    },
+    {
+      "pattern": "\\bif it's not too much trouble,?\\b",
+      "replacement": "",
+      "category": "hedging"
+    },
+    {
+      "pattern": "\\bI need you to\\b",
+      "replacement": "",
+      "category": "directive_strip"
+    },
+    {
+      "pattern": "\\bI want you to\\b",
+      "replacement": "",
+      "category": "directive_strip"
+    },
+    {
+      "pattern": "\\bplease make sure to\\b",
+      "replacement": "",
+      "category": "directive_strip"
+    },
+    {
+      "pattern": "\\bin a detailed manner\\b",
+      "replacement": "in detail",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin a very detailed manner\\b",
+      "replacement": "in detail",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin a concise manner\\b",
+      "replacement": "concisely",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin a clear and concise manner\\b",
+      "replacement": "concisely",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin order to\\b",
+      "replacement": "to",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bfor the purpose of\\b",
+      "replacement": "to",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bwith regard to\\b",
+      "replacement": "regarding",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bwith regards to\\b",
+      "replacement": "regarding",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bwith respect to\\b",
+      "replacement": "regarding",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin the context of\\b",
+      "replacement": "in",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin terms of\\b",
+      "replacement": "regarding",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bdue to the fact that\\b",
+      "replacement": "because",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bon account of the fact that\\b",
+      "replacement": "because",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bgiven the fact that\\b",
+      "replacement": "since",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin spite of the fact that\\b",
+      "replacement": "although",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bdespite the fact that\\b",
+      "replacement": "although",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bas a result of\\b",
+      "replacement": "from",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bas a consequence of\\b",
+      "replacement": "from",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bat this point in time\\b",
+      "replacement": "now",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bat the present time\\b",
+      "replacement": "now",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin the event that\\b",
+      "replacement": "if",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bit is important to note that\\b",
+      "replacement": "notably,",
+      "category": "filler"
+    },
+    {
+      "pattern": "\\bit should be noted that\\b",
+      "replacement": "",
+      "category": "filler"
+    },
+    {
+      "pattern": "\\bit is worth mentioning that\\b",
+      "replacement": "",
+      "category": "filler"
+    },
+    {
+      "pattern": "\\bas a matter of fact\\b",
+      "replacement": "in fact",
+      "category": "filler"
+    },
+    {
+      "pattern": "\\bthe thing is that\\b",
+      "replacement": "",
+      "category": "filler"
+    },
+    {
+      "pattern": "\\ba large number of\\b",
+      "replacement": "many",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\ba small number of\\b",
+      "replacement": "few",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\ba majority of\\b",
+      "replacement": "most",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin the near future\\b",
+      "replacement": "soon",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bon a regular basis\\b",
+      "replacement": "regularly",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin a timely manner\\b",
+      "replacement": "promptly",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bhas the ability to\\b",
+      "replacement": "can",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bhave the ability to\\b",
+      "replacement": "can",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bis able to\\b",
+      "replacement": "can",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bare able to\\b",
+      "replacement": "can",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bprovide (me |us )?(with )?an explanation of\\b",
+      "replacement": "explain",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bprovide (me |us )?(with )?a description of\\b",
+      "replacement": "describe",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bprovide (me |us )?(with )?a summary of\\b",
+      "replacement": "summarize",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bprovide (me |us )?(with )?a list of\\b",
+      "replacement": "list",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bgive (me |us )?(a |an )?explanation of\\b",
+      "replacement": "explain",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bgive (me |us )?(a |an )?description of\\b",
+      "replacement": "describe",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bgive (me |us )?(a |an )?overview of\\b",
+      "replacement": "overview:",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bstep by step\\b",
+      "replacement": "step-by-step",
+      "category": "formatting"
+    },
+    {
+      "pattern": "\\bone by one\\b",
+      "replacement": "sequentially",
+      "category": "formatting"
+    },
+    {
+      "pattern": "\\bas well as\\b",
+      "replacement": "and",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin addition to\\b",
+      "replacement": "besides",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\btake into account\\b",
+      "replacement": "consider",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\btake into consideration\\b",
+      "replacement": "consider",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bfor the sake of\\b",
+      "replacement": "for",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bby means of\\b",
+      "replacement": "via",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bwith the exception of\\b",
+      "replacement": "except",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bprior to\\b",
+      "replacement": "before",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bsubsequent to\\b",
+      "replacement": "after",
+      "category": "verbose_phrase"
+    },
+    {
+      "pattern": "\\bin close proximity to\\b",
+      "replacement": "near",
+      "category": "verbose_phrase"
+    }
+  ]
+}

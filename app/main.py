@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -25,6 +26,10 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _is_truthy(value: str | None) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -55,9 +60,17 @@ ALLOWED_ORIGIN_REGEX = r"^chrome-extension://.*$"
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Pre-load the language model and initialise storage."""
-    logger.info("Loading model on startup …")
-    ModelLoader.get_instance()
-    logger.info("Model ready.")
+    preload_model = _is_truthy(os.getenv("PRELOAD_MODEL_ON_STARTUP", "false"))
+    if preload_model:
+        logger.info("Loading model on startup …")
+        try:
+            ModelLoader.get_instance()
+            logger.info("Model ready.")
+        except Exception:
+            # Keep the process alive so /health works; model can load lazily later.
+            logger.exception("Model preload failed; continuing without preloaded model")
+    else:
+        logger.info("Skipping model preload (PRELOAD_MODEL_ON_STARTUP=false)")
 
     logger.info("Initialising prompt storage …")
     PromptRepository.get_instance()

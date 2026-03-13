@@ -25,8 +25,7 @@
     "http://127.0.0.1:8000/*",
     "http://localhost:8000/*",
     "https://chatgpt.com/*",
-    "https://claude.ai/*",
-    "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net/"
+    "https://claude.ai/*"
   ],
   "background": {
     "service_worker": "background.js"

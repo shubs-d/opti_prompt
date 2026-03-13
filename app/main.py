@@ -33,6 +33,7 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 # CORS — origins allowed for local frontend + browser extension
 # ------------------------------------------------------------------
 ALLOWED_ORIGINS = [
+    "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5500",

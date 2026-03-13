@@ -40,6 +40,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+
+  if (message.type === "ANALYZE") {
+    handleAnalyze(message.payload)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -68,6 +75,25 @@ async function handleOptimize({ prompt, mode, aggressiveness, auto_aggressivenes
 async function handleHealthCheck() {
   const res = await fetch(`${API_BASE}/health`);
   if (!res.ok) throw new Error(`Health check failed (${res.status})`);
+  return { ok: true, data: await res.json() };
+}
+
+async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness }) {
+  const body = { prompt, auto_aggressiveness: auto_aggressiveness ?? true };
+  if (aggressiveness != null) body.aggressiveness = aggressiveness;
+  if (mode) body.mode = mode;
+
+  const res = await fetch(`${API_BASE}/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+
   return { ok: true, data: await res.json() };
 }
 

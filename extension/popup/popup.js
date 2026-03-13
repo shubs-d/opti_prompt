@@ -76,12 +76,31 @@
     chartContainer: $("chartContainer"),
     historyList: $("historyList"),
     btnClearHistory: $("btnClearHistory"),
+    // Analyze tab
+    analyzePrompt: $("analyzePrompt"),
+    analyzeModeBtns: $$(".analyze-mode-btn"),
+    btnAnalyze: $("btnAnalyze"),
+    btnAnalyzeText: $("btnAnalyzeText"),
+    btnAnalyzeSpinner: $("btnAnalyzeSpinner"),
+    analyzeError: $("analyzeError"),
+    analyzeResults: $("analyzeResults"),
+    analyzeIntent: $("analyzeIntent"),
+    analyzeOptimized: $("analyzeOptimized"),
+    btnCopyAnalyzed: $("btnCopyAnalyzed"),
+    btnUseAnalyzed: $("btnUseAnalyzed"),
+    comparisonTable: $("comparisonTable"),
+    templateDetection: $("templateDetection"),
+    analyzeSummary: $("analyzeSummary"),
+    computeCompare: $("computeCompare"),
+    analyzeMetaStats: $("analyzeMetaStats"),
   };
 
   const state = {
     mode: "optimize",
+    analyzeMode: "both",
     lastOptimizedPrompt: "",
     lastCompressed: "",
+    lastAnalyzedOptimized: "",
     editingTemplateId: null,
     pendingTemplate: null,
     autoOptimizeTimer: null,
@@ -90,6 +109,7 @@
   function init() {
     bindTabs();
     bindOptimizeControls();
+    bindAnalyzeControls();
     bindTemplateControls();
     bindHistoryControls();
     restoreSettings();
@@ -171,6 +191,181 @@
       refs.templateEditor.classList.remove("hidden");
       switchTab("templates");
     });
+  }
+
+  /* --------------------------------------------------------------- */
+  /* Analyze tab                                                      */
+  /* --------------------------------------------------------------- */
+
+  function bindAnalyzeControls() {
+    refs.analyzeModeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        refs.analyzeModeBtns.forEach((b) => b.classList.toggle("active", b === btn));
+        state.analyzeMode = btn.dataset.mode;
+      });
+    });
+
+    refs.btnAnalyze.addEventListener("click", runAnalysis);
+
+    refs.btnCopyAnalyzed.addEventListener("click", async () => {
+      if (!state.lastAnalyzedOptimized) return;
+      await navigator.clipboard.writeText(state.lastAnalyzedOptimized);
+      pulseButton(refs.btnCopyAnalyzed, "✅ Copied!", "📋 Copy");
+    });
+
+    refs.btnUseAnalyzed.addEventListener("click", () => {
+      if (!state.lastAnalyzedOptimized) return;
+      refs.prompt.value = state.lastAnalyzedOptimized;
+      updateQualityScore(state.lastAnalyzedOptimized);
+      switchTab("optimize");
+    });
+  }
+
+  function runAnalysis() {
+    const prompt = refs.analyzePrompt.value.trim();
+    if (!prompt) {
+      refs.analyzeError.textContent = "Please enter a prompt to analyze.";
+      refs.analyzeError.classList.remove("hidden");
+      return;
+    }
+
+    refs.analyzeError.classList.add("hidden");
+    refs.btnAnalyze.disabled = true;
+    refs.btnAnalyzeSpinner.classList.remove("hidden");
+    refs.btnAnalyzeText.textContent = "Analyzing…";
+
+    const payload = { prompt, mode: state.analyzeMode };
+
+    chrome.runtime.sendMessage({ type: "ANALYZE", payload }, (res) => {
+      refs.btnAnalyze.disabled = false;
+      refs.btnAnalyzeSpinner.classList.add("hidden");
+      refs.btnAnalyzeText.textContent = "Analyze Prompt";
+
+      if (chrome.runtime.lastError) {
+        refs.analyzeError.textContent = chrome.runtime.lastError.message;
+        refs.analyzeError.classList.remove("hidden");
+        return;
+      }
+      if (!res?.ok) {
+        refs.analyzeError.textContent = res?.error || "Analysis failed.";
+        refs.analyzeError.classList.remove("hidden");
+        return;
+      }
+
+      renderAnalysis(res.data);
+    });
+  }
+
+  function renderAnalysis(data) {
+    refs.analyzeResults.classList.remove("hidden");
+    state.lastAnalyzedOptimized = data.optimized_prompt || "";
+
+    // Intent
+    refs.analyzeIntent.textContent = data.intent || "—";
+
+    // Optimized prompt
+    refs.analyzeOptimized.textContent = data.optimized_prompt || "";
+
+    // Comparison table
+    const comparison = data.comparison || [];
+    refs.comparisonTable.innerHTML = `
+      <div class="cmp-row cmp-header">
+        <span class="cmp-dim">Parameter</span>
+        <span class="cmp-score">Original</span>
+        <span class="cmp-score">Optimized</span>
+      </div>
+      ${comparison.map((d) => `
+        <div class="cmp-row">
+          <span class="cmp-dim">${escapeHtml(d.dimension)}</span>
+          <span class="cmp-score"><span class="score-pill score-${scoreTier(d.original_score)}">${d.original_score}/10</span></span>
+          <span class="cmp-score"><span class="score-pill score-${scoreTier(d.optimized_score)}">${d.optimized_score}/10</span></span>
+        </div>
+      `).join("")}
+    `;
+
+    // Template detection
+    const tpl = data.template || {};
+    if (tpl.is_templatizable) {
+      refs.templateDetection.innerHTML = `
+        <div class="tpl-detected">
+          <div class="tpl-name"><strong>Template Name:</strong> ${escapeHtml(tpl.template_name)}</div>
+          <div class="tpl-structure"><strong>Template Structure:</strong></div>
+          <div class="output-box tpl-box">${escapeHtml(tpl.template_structure)}</div>
+          <div class="tpl-vars"><strong>Variables:</strong> ${tpl.variables.map((v) => `<code>{${escapeHtml(v)}}</code>`).join(", ")}</div>
+          <button class="btn-small btn-primary tpl-save-btn" id="btnSaveDetectedTemplate">Save as Template</button>
+        </div>
+      `;
+
+      const saveBtn = document.getElementById("btnSaveDetectedTemplate");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          refs.tplName.value = tpl.template_name || "Detected Template";
+          refs.tplPrompt.value = tpl.template_structure.replace(/\{(\w+)\}/g, "{{$1}}");
+          refs.templateEditor.classList.remove("hidden");
+          switchTab("templates");
+        });
+      }
+    } else {
+      refs.templateDetection.innerHTML = '<div class="tpl-none">Template: Not Applicable</div>';
+    }
+
+    // Summary
+    refs.analyzeSummary.textContent = data.summary || "";
+
+    // Compute score
+    const co = data.compute_original || {};
+    const cc = data.compute_optimized || {};
+    const reduction = data.compute_reduction_percent ?? 0;
+    const computeDims = [
+      ["Token Length", co.token_length, cc.token_length],
+      ["Instruction Complexity", co.instruction_complexity, cc.instruction_complexity],
+      ["Reasoning Depth", co.reasoning_depth, cc.reasoning_depth],
+      ["Expected Output Size", co.expected_output_size, cc.expected_output_size],
+      ["Ambiguity", co.ambiguity, cc.ambiguity],
+    ];
+    refs.computeCompare.innerHTML = `
+      <div class="compute-overall">
+        <div class="compute-pill">
+          <span class="compute-label">Original</span>
+          <span class="compute-value compute-${computeTier(co.overall || 0)}">${co.overall || 0}/10</span>
+        </div>
+        <span class="compute-arrow">→</span>
+        <div class="compute-pill">
+          <span class="compute-label">Optimized</span>
+          <span class="compute-value compute-${computeTier(cc.overall || 0)}">${cc.overall || 0}/10</span>
+        </div>
+        <div class="compute-reduction ${reduction > 0 ? 'positive' : ''}">${reduction > 0 ? '↓' : ''}${Math.abs(reduction).toFixed(1)}% compute</div>
+      </div>
+      <div class="compute-dims">
+        ${computeDims.map(([label, orig, opt]) => `
+          <div class="compute-dim-row">
+            <span class="compute-dim-label">${escapeHtml(label)}</span>
+            <span class="score-pill score-${scoreTier(orig || 0)}">${orig || 0}</span>
+            <span class="compute-dim-arrow">→</span>
+            <span class="score-pill score-${scoreTier(opt || 0)}">${opt || 0}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    // Meta stats
+    refs.analyzeMetaStats.innerHTML = `
+      <span>${data.original_token_count || 0} → ${data.compressed_token_count || 0} tokens</span>
+      <span>Compression: ${((1 - (data.compression_ratio || 1)) * 100).toFixed(1)}%</span>
+      <span>Mode: ${escapeHtml(data.mode || "both")}</span>
+    `;
+  }
+
+  function scoreTier(score) {
+    if (score >= 8) return "high";
+    if (score >= 5) return "mid";
+    return "low";
+  }
+
+  function computeTier(score) {
+    if (score <= 3) return "low";
+    if (score <= 6) return "mid";
+    return "high";
   }
 
   function runOptimization() {

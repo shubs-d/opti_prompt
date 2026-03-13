@@ -8,12 +8,16 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.api.schemas import (
+    AnalyzeRequest,
+    AnalyzeResponse,
     CandidateResponse,
     CandidateScoreResponse,
+    ComputeScoreResponse,
     DecisionResponse,
     DensificationResponse,
     DensityResponse,
     DiffResponse,
+    DimensionScoreResponse,
     EvaluatePromptRequest,
     EvaluatePromptResponse,
     EvaluationResponse,
@@ -27,6 +31,7 @@ from app.api.schemas import (
     PromptResponse,
     SelectionResponse,
     ResponseMetricsResponse,
+    TemplateInfoResponse,
 )
 from app.core.candidate_generator import CandidateGenerator
 from app.core.compressor import Compressor
@@ -37,6 +42,7 @@ from app.core.diff_engine import DiffEngine
 from app.core.evaluator import Evaluator
 from app.core.intent_engine import IntentEngine, get_intent_strategy
 from app.core.model_loader import ModelLoader
+from app.core.prompt_analyzer import PromptAnalyzer
 from app.core.response_evaluator import ResponseEvaluator, infer_prompt_structure
 from app.storage.evaluation_repository import EvaluationRepository
 from app.storage.prompt_repository import PromptRepository
@@ -408,6 +414,71 @@ async def get_prompt(prompt_id: str) -> PromptResponse:
     except Exception as exc:
         logger.exception("Failed to retrieve prompt %s", prompt_id)
         return PromptResponse(success=False, data=None, error=str(exc))
+
+
+# ==================================================================
+# POST /analyze
+# ==================================================================
+
+@router.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
+    """Run the five-task prompt analysis pipeline.
+
+    Returns intent summary, optimized prompt, comparison scores,
+    template detection, and a one-line improvement summary.
+    """
+    try:
+        # 1. Run the optimisation pipeline to get a compressed prompt
+        result = _run_pipeline(
+            request.prompt,
+            request.mode,
+            request.aggressiveness,
+            request.auto_aggressiveness,
+        )
+
+        optimized = result["selected_text"]
+
+        # 2. Run the prompt analyzer
+        analyzer = PromptAnalyzer()
+        report = analyzer.analyze(
+            original_prompt=request.prompt,
+            optimized_prompt=optimized,
+        )
+
+        # Build density sub-response
+        density_resp = None
+        if result["density"] is not None:
+            density_resp = DensityResponse(**result["density"].to_dict())
+
+        return AnalyzeResponse(
+            intent=report.intent,
+            optimized_prompt=report.optimized_prompt,
+            comparison=[
+                DimensionScoreResponse(**d.to_dict()) for d in report.comparison
+            ],
+            template=TemplateInfoResponse(**report.template.to_dict()),
+            summary=report.summary,
+            compute_original=ComputeScoreResponse(**report.compute_original.to_dict()),
+            compute_optimized=ComputeScoreResponse(**report.compute_optimized.to_dict()),
+            compute_reduction_percent=report.compute_reduction_percent,
+            original_token_count=(
+                result["density"].original_token_count
+                if result["density"] is not None else 0
+            ),
+            compressed_token_count=(
+                result["density"].compressed_token_count
+                if result["density"] is not None else 0
+            ),
+            compression_ratio=round(
+                result["density"].compression_ratio, 4
+            ) if result["density"] is not None else 1.0,
+            mode=result["mode"],
+            intent_detail=IntentResponse(**result["intent"]),
+            density=density_resp,
+        )
+    except Exception as exc:
+        logger.exception("Analysis pipeline failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ==================================================================

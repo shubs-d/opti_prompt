@@ -19,6 +19,7 @@
 
   <nav class="tab-bar">
     <button class="tab active" data-tab="optimize">Optimize</button>
+    <button class="tab" data-tab="analyze">Analyze</button>
     <button class="tab" data-tab="templates">Templates</button>
     <button class="tab" data-tab="stats">Stats</button>
   </nav>
@@ -143,6 +144,86 @@
       <div class="success-overlay hidden" id="successOverlay">
         <div class="success-checkmark">✓</div>
       </div>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-analyze">
+    <div class="card">
+      <label class="label" for="analyzePrompt">Prompt to Analyze</label>
+      <textarea id="analyzePrompt" rows="5" placeholder="Paste a prompt to get a full structured analysis…"></textarea>
+    </div>
+
+    <div class="card">
+      <label class="label">Mode</label>
+      <div class="mode-selector">
+        <button class="mode-btn analyze-mode-btn active" data-mode="both">⚡✨ Both</button>
+        <button class="mode-btn analyze-mode-btn" data-mode="optimize">⚡ Optimize</button>
+        <button class="mode-btn analyze-mode-btn" data-mode="enhance">✨ Enhance</button>
+      </div>
+    </div>
+
+    <div class="card action-card">
+      <button class="btn-primary full" id="btnAnalyze">
+        <span id="btnAnalyzeText">Analyze Prompt</span>
+        <span class="spinner hidden" id="btnAnalyzeSpinner"></span>
+      </button>
+    </div>
+
+    <div class="error-banner hidden" id="analyzeError"></div>
+
+    <div class="card hidden" id="analyzeResults">
+      <!-- Intent -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">INTENT</div>
+        <div class="analysis-section-body" id="analyzeIntent"></div>
+      </div>
+
+      <hr class="analysis-divider" />
+
+      <!-- Optimized Prompt -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">OPTIMIZED PROMPT</div>
+        <div class="output-box" id="analyzeOptimized"></div>
+        <div class="result-actions compact-top">
+          <button class="btn-small btn-secondary" id="btnCopyAnalyzed">📋 Copy</button>
+          <button class="btn-small btn-secondary btn-success" id="btnUseAnalyzed">✅ Use in Optimize</button>
+        </div>
+      </div>
+
+      <hr class="analysis-divider" />
+
+      <!-- Comparison Table -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">PROMPT SCORES</div>
+        <div class="comparison-table" id="comparisonTable"></div>
+      </div>
+
+      <hr class="analysis-divider" />
+
+      <!-- Template Detection -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">AUTO TEMPLATE</div>
+        <div class="template-detection" id="templateDetection"></div>
+      </div>
+
+      <hr class="analysis-divider" />
+
+      <!-- Summary -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">SUMMARY</div>
+        <div class="analysis-section-body" id="analyzeSummary"></div>
+      </div>
+
+      <hr class="analysis-divider" />
+
+      <!-- Compute Score -->
+      <div class="analysis-section">
+        <div class="analysis-section-title">PROMPT COMPUTE SCORE</div>
+        <div class="compute-compare" id="computeCompare"></div>
+      </div>
+
+      <!-- Compression stats -->
+      <div class="analysis-meta" id="analyzeMetaStats"></div>
     </div>
   </section>
 

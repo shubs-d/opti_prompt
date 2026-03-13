@@ -259,3 +259,65 @@ class EvaluatePromptResponse(BaseModel):
     improvement_score: float
     evaluation_query: str
     stored: bool = False
+
+
+# ------------------------------------------------------------------
+# Analyze endpoint models
+# ------------------------------------------------------------------
+
+class AnalyzeRequest(BaseModel):
+    """Request body for ``POST /analyze``."""
+
+    prompt: str = Field(..., min_length=1, description="The original prompt to analyze.")
+    mode: Literal["optimize", "enhance", "both"] = Field(default="both")
+    aggressiveness: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    auto_aggressiveness: Optional[bool] = Field(default=True)
+
+
+class DimensionScoreResponse(BaseModel):
+    """Score for a single quality dimension."""
+
+    dimension: str
+    original_score: int
+    optimized_score: int
+
+
+class TemplateInfoResponse(BaseModel):
+    """Template detection result."""
+
+    is_templatizable: bool
+    template_name: str
+    template_structure: str
+    variables: List[str] = Field(default_factory=list)
+
+
+class ComputeScoreResponse(BaseModel):
+    """Prompt compute complexity estimate."""
+
+    token_length: int
+    instruction_complexity: int
+    reasoning_depth: int
+    expected_output_size: int
+    ambiguity: int
+    overall: int
+
+
+class AnalyzeResponse(BaseModel):
+    """Response for ``POST /analyze``."""
+
+    intent: str
+    optimized_prompt: str
+    comparison: List[DimensionScoreResponse]
+    template: TemplateInfoResponse
+    summary: str
+    # Compute complexity
+    compute_original: ComputeScoreResponse
+    compute_optimized: ComputeScoreResponse
+    compute_reduction_percent: float
+    # Pipeline metadata piggy-backed for convenience
+    original_token_count: int = 0
+    compressed_token_count: int = 0
+    compression_ratio: float = 1.0
+    mode: str = "both"
+    intent_detail: Optional[IntentResponse] = None
+    density: Optional[DensityResponse] = None

@@ -113,6 +113,24 @@ def get_intent_strategy(intent_label: str) -> IntentStrategy:
     return _INTENT_STRATEGIES[cat]
 
 
+def normalize_intent_label(intent_label: str | None) -> str:
+    """Normalize arbitrary intent text to a supported label."""
+    if not intent_label:
+        return IntentCategory.INFORMATIONAL.value
+    try:
+        return IntentCategory(intent_label.upper()).value
+    except ValueError:
+        return IntentCategory.INFORMATIONAL.value
+
+
+def get_default_aggressiveness_for_intent(intent_label: str) -> float:
+    """Return default aggressiveness for a normalized intent label."""
+    normalized = normalize_intent_label(intent_label)
+    category = IntentCategory(normalized)
+    _, default, _ = _AGGRESSIVENESS_MAP[category]
+    return round(default, 4)
+
+
 @dataclass
 class IntentResult:
     """Structured output from intent detection."""

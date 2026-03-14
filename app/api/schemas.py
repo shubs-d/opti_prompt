@@ -44,6 +44,16 @@ class OptimizeRequest(BaseModel):
         default=None,
         description="Optional probe query used during evaluation.",
     )
+    intent_override: Optional[Literal[
+        "INFORMATIONAL",
+        "CREATIVE",
+        "TECHNICAL",
+        "ANALYTICAL",
+        "CONVERSATIONAL",
+    ]] = Field(
+        default=None,
+        description="Optional manual intent override.",
+    )
 
 
 class EvaluatePromptRequest(BaseModel):
@@ -75,6 +85,18 @@ class PromptCreateRequest(BaseModel):
     token_reduction_percent: float = Field(default=0.0)
     drift_score: float = Field(default=0.0)
     decision: str = Field(default="PENDING")
+
+
+class PredictRequest(BaseModel):
+    """Request body for ``POST /predict``."""
+
+    text: str = Field(..., min_length=1, description="Current prompt text.")
+
+
+class PredictResponse(BaseModel):
+    """Response body for ``POST /predict``."""
+
+    prediction: str
 
 
 # ------------------------------------------------------------------
@@ -272,6 +294,16 @@ class AnalyzeRequest(BaseModel):
     mode: Literal["optimize", "enhance", "both"] = Field(default="both")
     aggressiveness: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     auto_aggressiveness: Optional[bool] = Field(default=True)
+    intent_override: Optional[Literal[
+        "INFORMATIONAL",
+        "CREATIVE",
+        "TECHNICAL",
+        "ANALYTICAL",
+        "CONVERSATIONAL",
+    ]] = Field(
+        default=None,
+        description="Optional manual intent override.",
+    )
 
 
 class DimensionScoreResponse(BaseModel):

@@ -20,8 +20,11 @@
     tabs: $$(".tab"),
     tabContents: $$(".tab-content"),
     prompt: $("prompt"),
+    promptGhostWrap: $("promptGhostWrap"),
+    promptGhostText: $("promptGhostText"),
     autoMode: $("autoMode"),
     autoOptimizeToggle: $("autoOptimizeToggle"),
+    intentOverride: $("intentOverride"),
     aggr: $("aggr"),
     aggrVal: $("aggrVal"),
     btnOptimize: $("btnOptimize"),
@@ -79,6 +82,7 @@
     // Analyze tab
     analyzePrompt: $("analyzePrompt"),
     analyzeModeBtns: $$(".analyze-mode-btn"),
+    analyzeIntentOverride: $("analyzeIntentOverride"),
     btnAnalyze: $("btnAnalyze"),
     btnAnalyzeText: $("btnAnalyzeText"),
     btnAnalyzeSpinner: $("btnAnalyzeSpinner"),
@@ -98,15 +102,21 @@
   const state = {
     mode: "optimize",
     analyzeMode: "both",
+    intentOverride: "",
+    analyzeIntentOverride: "",
     lastOptimizedPrompt: "",
     lastCompressed: "",
     lastAnalyzedOptimized: "",
     editingTemplateId: null,
     pendingTemplate: null,
     autoOptimizeTimer: null,
+    ghostPrediction: "",
+    predictRequestId: 0,
+    debouncedPredict: null,
   };
 
   function init() {
+    state.debouncedPredict = debounce(requestGhostPrediction, 400);
     bindTabs();
     bindOptimizeControls();
     bindAnalyzeControls();
@@ -151,11 +161,23 @@
     });
 
     refs.autoOptimizeToggle.addEventListener("change", saveSettings);
+    refs.intentOverride.addEventListener("change", () => {
+      const previousIntent = state.intentOverride;
+      state.intentOverride = refs.intentOverride.value;
+      // Keep analyze tab default aligned unless user explicitly changed it.
+      if (!state.analyzeIntentOverride || state.analyzeIntentOverride === previousIntent) {
+        state.analyzeIntentOverride = refs.intentOverride.value;
+        refs.analyzeIntentOverride.value = state.analyzeIntentOverride;
+      }
+      saveSettings();
+    });
 
     refs.prompt.addEventListener("input", () => {
       const prompt = refs.prompt.value;
       updateQualityScore(prompt);
       suggestTemplate(prompt);
+      clearGhostPrediction();
+      state.debouncedPredict(prompt);
       if (refs.autoOptimizeToggle.checked) {
         clearTimeout(state.autoOptimizeTimer);
         state.autoOptimizeTimer = setTimeout(() => {
@@ -164,6 +186,21 @@
             runOptimization();
           }
         }, 900);
+      }
+    });
+
+    refs.prompt.addEventListener("keydown", (event) => {
+      if (event.key === "Tab" && state.ghostPrediction) {
+        event.preventDefault();
+        acceptGhostPrediction();
+      }
+    });
+
+    refs.prompt.addEventListener("scroll", renderGhostPrediction);
+    refs.prompt.addEventListener("click", renderGhostPrediction);
+    refs.prompt.addEventListener("keyup", (event) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+        renderGhostPrediction();
       }
     });
 
@@ -205,6 +242,11 @@
       });
     });
 
+    refs.analyzeIntentOverride.addEventListener("change", () => {
+      state.analyzeIntentOverride = refs.analyzeIntentOverride.value;
+      saveSettings();
+    });
+
     refs.btnAnalyze.addEventListener("click", runAnalysis);
 
     refs.btnCopyAnalyzed.addEventListener("click", async () => {
@@ -235,6 +277,7 @@
     refs.btnAnalyzeText.textContent = "Analyzing…";
 
     const payload = { prompt, mode: state.analyzeMode };
+    if (state.analyzeIntentOverride) payload.intent_override = state.analyzeIntentOverride;
 
     chrome.runtime.sendMessage({ type: "ANALYZE", payload }, (res) => {
       refs.btnAnalyze.disabled = false;
@@ -260,38 +303,42 @@
     refs.analyzeResults.classList.remove("hidden");
     state.lastAnalyzedOptimized = data.optimized_prompt || "";
 
-    // Intent
-    refs.analyzeIntent.textContent = data.intent || "—";
+    const intent = data.intent || data.intent_detail?.intent || "—";
+    const confidence = Number(data.intent_detail?.intent_confidence || 0);
+    refs.analyzeIntent.innerHTML = `
+      <strong>${escapeHtml(intent)}</strong>
+      <span class="meta">${confidence ? `${Math.round(confidence * 100)}% confidence` : "manual/auto-selected"}</span>
+    `;
 
     // Optimized prompt
     refs.analyzeOptimized.textContent = data.optimized_prompt || "";
 
-    // Comparison table
-    const comparison = data.comparison || [];
+    // Top improvements only (reduced visual load)
+    const comparison = (data.comparison || [])
+      .map((d) => ({ ...d, delta: (d.optimized_score || 0) - (d.original_score || 0) }))
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 3);
+
     refs.comparisonTable.innerHTML = `
       <div class="cmp-row cmp-header">
-        <span class="cmp-dim">Parameter</span>
-        <span class="cmp-score">Original</span>
-        <span class="cmp-score">Optimized</span>
+        <span class="cmp-dim">What Improved</span>
+        <span class="cmp-score">Gain</span>
       </div>
       ${comparison.map((d) => `
         <div class="cmp-row">
           <span class="cmp-dim">${escapeHtml(d.dimension)}</span>
-          <span class="cmp-score"><span class="score-pill score-${scoreTier(d.original_score)}">${d.original_score}/10</span></span>
-          <span class="cmp-score"><span class="score-pill score-${scoreTier(d.optimized_score)}">${d.optimized_score}/10</span></span>
+          <span class="cmp-score"><span class="improvement-pill">+${d.delta}</span></span>
         </div>
       `).join("")}
     `;
 
-    // Template detection
+    // Template detection (compact)
     const tpl = data.template || {};
     if (tpl.is_templatizable) {
       refs.templateDetection.innerHTML = `
         <div class="tpl-detected">
-          <div class="tpl-name"><strong>Template Name:</strong> ${escapeHtml(tpl.template_name)}</div>
-          <div class="tpl-structure"><strong>Template Structure:</strong></div>
-          <div class="output-box tpl-box">${escapeHtml(tpl.template_structure)}</div>
-          <div class="tpl-vars"><strong>Variables:</strong> ${tpl.variables.map((v) => `<code>{${escapeHtml(v)}}</code>`).join(", ")}</div>
+          <div class="tpl-name"><strong>Reusable:</strong> Yes (${escapeHtml(tpl.template_name)})</div>
+          <div class="tpl-vars"><strong>Variables:</strong> ${tpl.variables.length || 0}</div>
           <button class="btn-small btn-primary tpl-save-btn" id="btnSaveDetectedTemplate">Save as Template</button>
         </div>
       `;
@@ -306,23 +353,16 @@
         });
       }
     } else {
-      refs.templateDetection.innerHTML = '<div class="tpl-none">Template: Not Applicable</div>';
+      refs.templateDetection.innerHTML = '<div class="tpl-none">Not a reusable template pattern yet.</div>';
     }
 
-    // Summary
-    refs.analyzeSummary.textContent = data.summary || "";
+    // Summary (shortened)
+    refs.analyzeSummary.textContent = conciseText(data.summary || "No summary available.");
 
     // Compute score
     const co = data.compute_original || {};
     const cc = data.compute_optimized || {};
     const reduction = data.compute_reduction_percent ?? 0;
-    const computeDims = [
-      ["Token Length", co.token_length, cc.token_length],
-      ["Instruction Complexity", co.instruction_complexity, cc.instruction_complexity],
-      ["Reasoning Depth", co.reasoning_depth, cc.reasoning_depth],
-      ["Expected Output Size", co.expected_output_size, cc.expected_output_size],
-      ["Ambiguity", co.ambiguity, cc.ambiguity],
-    ];
     refs.computeCompare.innerHTML = `
       <div class="compute-overall">
         <div class="compute-pill">
@@ -335,16 +375,6 @@
           <span class="compute-value compute-${computeTier(cc.overall || 0)}">${cc.overall || 0}/10</span>
         </div>
         <div class="compute-reduction ${reduction > 0 ? 'positive' : ''}">${reduction > 0 ? '↓' : ''}${Math.abs(reduction).toFixed(1)}% compute</div>
-      </div>
-      <div class="compute-dims">
-        ${computeDims.map(([label, orig, opt]) => `
-          <div class="compute-dim-row">
-            <span class="compute-dim-label">${escapeHtml(label)}</span>
-            <span class="score-pill score-${scoreTier(orig || 0)}">${orig || 0}</span>
-            <span class="compute-dim-arrow">→</span>
-            <span class="score-pill score-${scoreTier(opt || 0)}">${opt || 0}</span>
-          </div>
-        `).join("")}
       </div>
     `;
 
@@ -383,6 +413,7 @@
       mode: state.mode,
       auto_aggressiveness: refs.autoMode.checked,
     };
+    if (state.intentOverride) payload.intent_override = state.intentOverride;
     if (!refs.autoMode.checked) payload.aggressiveness = Number(refs.aggr.value);
 
     chrome.runtime.sendMessage({ type: "OPTIMIZE", payload }, (res) => {
@@ -402,6 +433,136 @@
       addToHistory(prompt, res.data);
       showSuccessAnimation();
     });
+  }
+
+  function requestGhostPrediction(text) {
+    const currentText = String(text || "");
+    if (!currentText.trim()) {
+      clearGhostPrediction();
+      return;
+    }
+
+    const requestId = ++state.predictRequestId;
+    chrome.runtime.sendMessage({ type: "PREDICT", payload: { text: currentText } }, (res) => {
+      if (requestId !== state.predictRequestId) return;
+
+      if (chrome.runtime.lastError || !res?.ok) {
+        clearGhostPrediction();
+        return;
+      }
+
+      const prediction = String(res?.data?.prediction || "");
+      if (!prediction.trim()) {
+        clearGhostPrediction();
+        return;
+      }
+
+      state.ghostPrediction = prediction;
+      renderGhostPrediction();
+    });
+  }
+
+  function acceptGhostPrediction() {
+    const prediction = state.ghostPrediction;
+    if (!prediction) return;
+
+    const start = refs.prompt.selectionStart ?? refs.prompt.value.length;
+    const end = refs.prompt.selectionEnd ?? start;
+    const current = refs.prompt.value;
+    refs.prompt.value = `${current.slice(0, start)}${prediction}${current.slice(end)}`;
+
+    const nextCaret = start + prediction.length;
+    refs.prompt.selectionStart = nextCaret;
+    refs.prompt.selectionEnd = nextCaret;
+
+    updateQualityScore(refs.prompt.value);
+    suggestTemplate(refs.prompt.value);
+    clearGhostPrediction();
+    state.debouncedPredict(refs.prompt.value);
+  }
+
+  function renderGhostPrediction() {
+    if (!state.ghostPrediction) {
+      refs.promptGhostText.classList.add("hidden");
+      return;
+    }
+
+    if (document.activeElement !== refs.prompt) {
+      refs.promptGhostText.classList.add("hidden");
+      return;
+    }
+
+    const caretPosition = refs.prompt.selectionStart ?? refs.prompt.value.length;
+    const caret = getCaretCoordinates(refs.prompt, caretPosition);
+
+    refs.promptGhostText.textContent = state.ghostPrediction;
+    refs.promptGhostText.style.left = `${caret.left}px`;
+    refs.promptGhostText.style.top = `${caret.top}px`;
+    refs.promptGhostText.classList.remove("hidden");
+  }
+
+  function clearGhostPrediction() {
+    state.ghostPrediction = "";
+    refs.promptGhostText.textContent = "";
+    refs.promptGhostText.classList.add("hidden");
+  }
+
+  function getCaretCoordinates(textarea, position) {
+    const div = document.createElement("div");
+    const style = window.getComputedStyle(textarea);
+    const properties = [
+      "boxSizing",
+      "width",
+      "height",
+      "overflowX",
+      "overflowY",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "fontStyle",
+      "fontVariant",
+      "fontWeight",
+      "fontStretch",
+      "fontSize",
+      "lineHeight",
+      "fontFamily",
+      "textAlign",
+      "textTransform",
+      "textIndent",
+      "textDecoration",
+      "letterSpacing",
+      "wordSpacing",
+      "tabSize",
+      "MozTabSize",
+      "whiteSpace",
+      "wordBreak",
+    ];
+
+    div.style.position = "absolute";
+    div.style.visibility = "hidden";
+    div.style.whiteSpace = "pre-wrap";
+    div.style.wordWrap = "break-word";
+
+    properties.forEach((prop) => {
+      div.style[prop] = style[prop];
+    });
+
+    div.textContent = textarea.value.substring(0, position);
+    const span = document.createElement("span");
+    span.textContent = textarea.value.substring(position) || ".";
+    div.appendChild(span);
+    document.body.appendChild(div);
+
+    const left = span.offsetLeft - textarea.scrollLeft + parseFloat(style.borderLeftWidth || "0");
+    const top = span.offsetTop - textarea.scrollTop + parseFloat(style.borderTopWidth || "0");
+
+    document.body.removeChild(div);
+    return { left, top };
   }
 
   function renderResults(originalPrompt, data) {
@@ -794,6 +955,10 @@
       refs.aggr.disabled = refs.autoMode.checked;
       refs.aggrVal.textContent = refs.autoMode.checked ? "auto" : Number(refs.aggr.value).toFixed(2);
       state.mode = settings.mode || "optimize";
+      state.intentOverride = settings.intentOverride || "";
+      state.analyzeIntentOverride = settings.analyzeIntentOverride || state.intentOverride;
+      refs.intentOverride.value = state.intentOverride;
+      refs.analyzeIntentOverride.value = state.analyzeIntentOverride;
       refs.modeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === state.mode));
     });
   }
@@ -805,6 +970,8 @@
         aggressiveness: Number(refs.aggr.value),
         autoAggressiveness: refs.autoMode.checked,
         autoOptimize: refs.autoOptimizeToggle.checked,
+        intentOverride: state.intentOverride,
+        analyzeIntentOverride: state.analyzeIntentOverride,
       },
     });
   }
@@ -870,6 +1037,21 @@
 
   function clampScore(value) {
     return Math.max(0, Math.min(100, Math.round(value)));
+  }
+
+  function conciseText(text) {
+    const normalized = String(text || "").trim().replace(/\s+/g, " ");
+    if (!normalized) return "";
+    const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0] || normalized;
+    return firstSentence.length <= 180 ? firstSentence : `${firstSentence.slice(0, 177)}...`;
+  }
+
+  function debounce(fn, delay) {
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
   }
 
   function formatTime(timestamp) {

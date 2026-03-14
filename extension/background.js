@@ -7,6 +7,8 @@
  */
 
 const API_BASE = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
+const PREDICTION_CACHE = new Map();
+const PREDICTION_CACHE_MAX = 120;
 
 /* ------------------------------------------------------------------ */
 /* Message router                                                      */
@@ -22,6 +24,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === "HEALTH_CHECK") {
     handleHealthCheck()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "PREDICT") {
+    handlePredict(message.payload)
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -53,10 +62,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /* API helpers                                                         */
 /* ------------------------------------------------------------------ */
 
-async function handleOptimize({ prompt, mode, aggressiveness, auto_aggressiveness }) {
+async function handleOptimize({ prompt, mode, aggressiveness, auto_aggressiveness, intent_override }) {
   const body = { prompt, auto_aggressiveness: auto_aggressiveness ?? true };
   if (aggressiveness != null) body.aggressiveness = aggressiveness;
   if (mode) body.mode = mode;
+  if (intent_override) body.intent_override = intent_override;
 
   const res = await fetch(`${API_BASE}/optimize`, {
     method: "POST",
@@ -78,10 +88,11 @@ async function handleHealthCheck() {
   return { ok: true, data: await res.json() };
 }
 
-async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness }) {
+async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness, intent_override }) {
   const body = { prompt, auto_aggressiveness: auto_aggressiveness ?? true };
   if (aggressiveness != null) body.aggressiveness = aggressiveness;
   if (mode) body.mode = mode;
+  if (intent_override) body.intent_override = intent_override;
 
   const res = await fetch(`${API_BASE}/analyze`, {
     method: "POST",
@@ -95,6 +106,40 @@ async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness
   }
 
   return { ok: true, data: await res.json() };
+}
+
+async function handlePredict({ text }) {
+  const normalized = String(text || "").trim();
+  if (!normalized) return { ok: true, data: { prediction: "" } };
+
+  if (PREDICTION_CACHE.has(normalized)) {
+    return { ok: true, data: { prediction: PREDICTION_CACHE.get(normalized) } };
+  }
+
+  const res = await fetch(`${API_BASE}/predict`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: normalized }),
+  });
+
+  if (!res.ok) {
+    const textBody = await res.text();
+    throw new Error(`API ${res.status}: ${textBody}`);
+  }
+
+  const data = await res.json();
+  const prediction = data?.prediction || "";
+
+  if (prediction) {
+    if (PREDICTION_CACHE.has(normalized)) PREDICTION_CACHE.delete(normalized);
+    PREDICTION_CACHE.set(normalized, prediction);
+    if (PREDICTION_CACHE.size > PREDICTION_CACHE_MAX) {
+      const oldest = PREDICTION_CACHE.keys().next().value;
+      PREDICTION_CACHE.delete(oldest);
+    }
+  }
+
+  return { ok: true, data: { prediction } };
 }
 
 /* ------------------------------------------------------------------ */

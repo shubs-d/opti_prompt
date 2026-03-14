@@ -43,7 +43,10 @@
 
     <div class="card">
       <label class="label" for="prompt">Prompt</label>
-      <textarea id="prompt" rows="6" placeholder="Paste or write your prompt here…"></textarea>
+      <div class="ghost-wrap" id="promptGhostWrap">
+        <textarea id="prompt" rows="6" placeholder="Paste or write your prompt here…"></textarea>
+        <div id="promptGhostText" class="ghost-text hidden" aria-hidden="true"></div>
+      </div>
     </div>
 
     <div class="card hidden" id="templateSuggestionCard">
@@ -63,6 +66,15 @@
         <button class="mode-btn" data-mode="enhance">✨ Enhance</button>
         <button class="mode-btn" data-mode="both">⚡✨ Both</button>
       </div>
+      <label class="label" for="intentOverride">Intent</label>
+      <select id="intentOverride" class="input select-input">
+        <option value="">Auto Detect</option>
+        <option value="INFORMATIONAL">Informational</option>
+        <option value="CREATIVE">Creative</option>
+        <option value="TECHNICAL">Technical / Coding</option>
+        <option value="ANALYTICAL">Analytical</option>
+        <option value="CONVERSATIONAL">Conversational</option>
+      </select>
       <div class="toggle-grid">
         <label class="toggle-item">
           <input type="checkbox" id="autoMode" checked />
@@ -160,6 +172,15 @@
         <button class="mode-btn analyze-mode-btn" data-mode="optimize">⚡ Optimize</button>
         <button class="mode-btn analyze-mode-btn" data-mode="enhance">✨ Enhance</button>
       </div>
+      <label class="label" for="analyzeIntentOverride">Intent</label>
+      <select id="analyzeIntentOverride" class="input select-input">
+        <option value="">Auto Detect</option>
+        <option value="INFORMATIONAL">Informational</option>
+        <option value="CREATIVE">Creative</option>
+        <option value="TECHNICAL">Technical / Coding</option>
+        <option value="ANALYTICAL">Analytical</option>
+        <option value="CONVERSATIONAL">Conversational</option>
+      </select>
     </div>
 
     <div class="card action-card">
@@ -172,9 +193,8 @@
     <div class="error-banner hidden" id="analyzeError"></div>
 
     <div class="card hidden" id="analyzeResults">
-      <!-- Intent -->
       <div class="analysis-section">
-        <div class="analysis-section-title">INTENT</div>
+        <div class="analysis-section-title">Quick Insight</div>
         <div class="analysis-section-body" id="analyzeIntent"></div>
       </div>
 
@@ -192,23 +212,20 @@
 
       <hr class="analysis-divider" />
 
-      <!-- Comparison Table -->
       <div class="analysis-section">
-        <div class="analysis-section-title">PROMPT SCORES</div>
+        <div class="analysis-section-title">Top Improvements</div>
         <div class="comparison-table" id="comparisonTable"></div>
       </div>
 
       <hr class="analysis-divider" />
 
-      <!-- Template Detection -->
       <div class="analysis-section">
-        <div class="analysis-section-title">AUTO TEMPLATE</div>
+        <div class="analysis-section-title">Reusability</div>
         <div class="template-detection" id="templateDetection"></div>
       </div>
 
       <hr class="analysis-divider" />
 
-      <!-- Summary -->
       <div class="analysis-section">
         <div class="analysis-section-title">SUMMARY</div>
         <div class="analysis-section-body" id="analyzeSummary"></div>
@@ -216,9 +233,8 @@
 
       <hr class="analysis-divider" />
 
-      <!-- Compute Score -->
       <div class="analysis-section">
-        <div class="analysis-section-title">PROMPT COMPUTE SCORE</div>
+        <div class="analysis-section-title">Cost Snapshot</div>
         <div class="compute-compare" id="computeCompare"></div>
       </div>
 

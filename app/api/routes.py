@@ -28,6 +28,8 @@ from app.api.schemas import (
     PromptCreateRequest,
     PromptListResponse,
     PromptRecord,
+    PredictRequest,
+    PredictResponse,
     PromptResponse,
     SelectionResponse,
     ResponseMetricsResponse,
@@ -40,7 +42,12 @@ from app.core.densifier import Densifier
 from app.core.density_metrics import DensityMetrics
 from app.core.diff_engine import DiffEngine
 from app.core.evaluator import Evaluator
-from app.core.intent_engine import IntentEngine, get_intent_strategy
+from app.core.intent_engine import (
+    IntentEngine,
+    get_default_aggressiveness_for_intent,
+    get_intent_strategy,
+    normalize_intent_label,
+)
 from app.core.model_loader import ModelLoader
 from app.core.prompt_analyzer import PromptAnalyzer
 from app.core.response_evaluator import ResponseEvaluator, infer_prompt_structure
@@ -61,6 +68,7 @@ def _run_pipeline(
     aggressiveness: float | None,
     auto_aggressiveness: bool | None,
     test_query: str | None = None,
+    intent_override: str | None = None,
 ) -> dict:
     """Execute the full prompt-compiler pipeline.
 
@@ -79,7 +87,17 @@ def _run_pipeline(
 
     # --- 1. Intent detection & aggressiveness resolution ----------------
     intent_engine = IntentEngine()
-    intent_result = intent_engine.detect(prompt, model_loader=model_loader)
+    detected_intent_result = intent_engine.detect(prompt, model_loader=model_loader)
+
+    if intent_override:
+        resolved_intent = normalize_intent_label(intent_override)
+        intent_label = resolved_intent
+        intent_confidence = 1.0
+        recommended_aggressiveness = get_default_aggressiveness_for_intent(resolved_intent)
+    else:
+        intent_label = detected_intent_result.intent_label
+        intent_confidence = detected_intent_result.confidence_score
+        recommended_aggressiveness = detected_intent_result.recommended_aggressiveness
 
     auto_mode: bool
     effective_aggressiveness: float
@@ -91,21 +109,21 @@ def _run_pipeline(
         effective_aggressiveness = 0.3
         auto_mode = False
     else:
-        effective_aggressiveness = intent_result.recommended_aggressiveness
+        effective_aggressiveness = recommended_aggressiveness
         auto_mode = True
 
     intent_info = {
-        "intent": intent_result.intent_label,
-        "intent_confidence": intent_result.confidence_score,
+        "intent": intent_label,
+        "intent_confidence": intent_confidence,
         "aggressiveness_used": round(effective_aggressiveness, 4),
         "auto_mode": auto_mode,
     }
 
-    strategy = intent_result.get_optimization_strategy()
+    strategy = get_intent_strategy(intent_label)
 
     logger.info(
         "Pipeline — intent=%s  aggr=%.2f  auto=%s  min_sim=%.2f",
-        intent_result.intent_label,
+        intent_label,
         effective_aggressiveness,
         auto_mode,
         strategy.min_similarity,
@@ -115,7 +133,7 @@ def _run_pipeline(
     generator = CandidateGenerator(model_loader)
     candidate_set = generator.generate(
         original_text=prompt,
-        intent_label=intent_result.intent_label,
+        intent_label=intent_label,
         base_aggressiveness=effective_aggressiveness,
         mode=mode,
         prefer_structuring=strategy.prefer_structuring,
@@ -213,6 +231,25 @@ def _run_pipeline(
 
 
 # ==================================================================
+# POST /predict
+# ==================================================================
+
+@router.post("/predict", response_model=PredictResponse)
+async def predict(request: PredictRequest) -> PredictResponse:
+    """Return a short deterministic continuation for inline ghost text."""
+    try:
+        model_loader = ModelLoader.get_instance()
+        prediction = model_loader.predict_next_tokens(
+            text=request.text,
+            max_new_tokens=10,
+        )
+        return PredictResponse(prediction=prediction)
+    except Exception as exc:
+        logger.exception("Prediction failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ==================================================================
 # POST /optimize  (original endpoint — unchanged contract)
 # ==================================================================
 
@@ -226,6 +263,7 @@ async def optimize(request: OptimizeRequest) -> OptimizeResponse:
             request.aggressiveness,
             request.auto_aggressiveness,
             request.test_query,
+            request.intent_override,
         )
 
         # Build candidate list for response
@@ -299,6 +337,7 @@ async def optimize_and_store(request: OptimizeRequest) -> OptimizeAndStoreRespon
             request.aggressiveness,
             request.auto_aggressiveness,
             request.test_query,
+            request.intent_override,
         )
         evaluation = result["evaluation"]
         decision = result["decision"]
@@ -434,6 +473,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             request.mode,
             request.aggressiveness,
             request.auto_aggressiveness,
+            intent_override=request.intent_override,
         )
 
         optimized = result["selected_text"]

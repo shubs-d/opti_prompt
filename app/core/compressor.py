@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any
 
@@ -10,6 +11,36 @@ from app.core.model_loader import ModelLoader
 from app.utils.token_utils import compute_threshold, rebuild_text_from_tokens
 
 logger = logging.getLogger(__name__)
+
+
+FLUFF_PATTERNS = [
+    r"\bplease\b",
+    r"\bthank\s+you\b",
+    r"\bcould\s+you\b",
+    r"\bcan\s+you\s+help\s+me\b",
+    r"\bcan\s+you\b",
+    r"\bi\s+would\s+like\s+to\b",
+    r"\bsorry\s+but\b",
+    r"\bact\s+as\s+a\b",
+    r"\bwould\s+you\b",
+    r"\bkindly\b",
+]
+
+
+def clean_prompt_text(text: str) -> str:
+    """Remove conversational filler while preserving instruction semantics."""
+    cleaned = text or ""
+
+    for pattern in FLUFF_PATTERNS:
+        cleaned = re.sub(pattern, " ", cleaned, flags=re.IGNORECASE)
+
+    # Remove repeated punctuation/spaces left behind by phrase stripping.
+    cleaned = re.sub(r"\s+([,.;:!?])", r"\1", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = cleaned.strip(" ,;:-\n\t")
+
+    # Safety fallback: avoid returning an empty prompt after cleanup.
+    return cleaned if cleaned else (text or "").strip()
 
 
 @dataclass
@@ -61,9 +92,11 @@ class Compressor:
         """
         aggressiveness = max(0.0, min(1.0, aggressiveness))
 
+        preprocessed_text = clean_prompt_text(text)
+
         # 1. Tokenize & score
-        input_ids, token_strings = self._model.tokenize(text)
-        surprisal_scores: List[float] = self._model.compute_token_surprisal(text)
+        input_ids, token_strings = self._model.tokenize(preprocessed_text)
+        surprisal_scores: List[float] = self._model.compute_token_surprisal(preprocessed_text)
 
         original_count = len(token_strings)
 

@@ -6,6 +6,8 @@ exposes token-level surprisal computation.
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
+from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
@@ -47,6 +49,9 @@ class ModelLoader:
         self.device = device or self._resolve_device()
         self.tokenizer: PreTrainedTokenizerBase = self._load_tokenizer()
         self.model: PreTrainedModel = self._load_model()
+        self._prediction_cache: OrderedDict[str, str] = OrderedDict()
+        self._prediction_cache_lock = Lock()
+        self._prediction_cache_max_size = 128
         logger.info(
             "Model '%s' loaded on device '%s'",
             self.model_name,
@@ -208,6 +213,76 @@ class ModelLoader:
     def decode_tokens(self, token_ids: List[int]) -> str:
         """Decode a list of token IDs back to a string."""
         return self.tokenizer.decode(token_ids, skip_special_tokens=True)
+
+    def _get_cached_prediction(self, cache_key: str) -> Optional[str]:
+        with self._prediction_cache_lock:
+            if cache_key not in self._prediction_cache:
+                return None
+            value = self._prediction_cache.pop(cache_key)
+            # LRU update
+            self._prediction_cache[cache_key] = value
+            return value
+
+    def _set_cached_prediction(self, cache_key: str, prediction: str) -> None:
+        with self._prediction_cache_lock:
+            if cache_key in self._prediction_cache:
+                self._prediction_cache.pop(cache_key)
+            self._prediction_cache[cache_key] = prediction
+            if len(self._prediction_cache) > self._prediction_cache_max_size:
+                self._prediction_cache.popitem(last=False)
+
+    @torch.no_grad()
+    def predict_next_tokens(
+        self,
+        text: str,
+        max_new_tokens: int = 10,
+    ) -> str:
+        """Predict a short continuation for *text*.
+
+        Decodes only generated token IDs (excluding the input prompt).
+        """
+        normalized = (text or "").strip()
+        if not normalized:
+            return ""
+
+        cache_key = f"{normalized}|{max_new_tokens}"
+        cached = self._get_cached_prediction(cache_key)
+        if cached is not None:
+            return cached
+
+        encoded = self.encode(normalized)
+        prompt_len = int(encoded["input_ids"].shape[-1])
+
+        try:
+            output_ids = self.model.generate(
+                **encoded,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                temperature=0.7,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+        except RuntimeError as exc:
+            if not _looks_like_device_error(exc):
+                raise
+            self._fallback_to_cpu()
+            encoded = self.encode(normalized)
+            prompt_len = int(encoded["input_ids"].shape[-1])
+            output_ids = self.model.generate(
+                **encoded,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                temperature=0.7,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+
+        generated_ids = output_ids[0][prompt_len:].detach().cpu().tolist()
+        if not generated_ids:
+            prediction = ""
+        else:
+            prediction = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        self._set_cached_prediction(cache_key, prediction)
+        return prediction
 
     @torch.no_grad()
     def embed_text(self, text: str) -> List[float]:

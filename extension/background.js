@@ -6,7 +6,7 @@
  * that content scripts face on third-party pages.
  */
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
 const PREDICTION_CACHE = new Map();
 const PREDICTION_CACHE_MAX = 120;
 

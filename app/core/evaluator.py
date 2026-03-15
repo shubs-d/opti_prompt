@@ -49,6 +49,20 @@ class Evaluator:
     def __init__(self, model_loader: ModelLoader) -> None:
         self._model = model_loader
 
+    @staticmethod
+    def should_trigger_gepa_repair(
+        report: EvaluationReport,
+        lower_drift: float = 0.08,
+        upper_drift: float = 0.15,
+    ) -> bool:
+        """Return True when drift falls in the GEPA repair band.
+
+        The GEPA loop is intended for *recoverable* semantic drift:
+        high enough to need correction, but not so high that the candidate
+        should be discarded outright.
+        """
+        return lower_drift <= report.drift_score <= upper_drift
+
     def evaluate(
         self,
         original_prompt: str,

@@ -21,6 +21,7 @@ from app.api.schemas import (
     EvaluatePromptRequest,
     EvaluatePromptResponse,
     EvaluationResponse,
+    GepaRepairResponse,
     IntentResponse,
     OptimizeAndStoreResponse,
     OptimizeRequest,
@@ -42,6 +43,7 @@ from app.core.densifier import Densifier
 from app.core.density_metrics import DensityMetrics
 from app.core.diff_engine import DiffEngine
 from app.core.evaluator import Evaluator
+from app.core.gepa.mutator import GepaMutator
 from app.core.intent_engine import (
     IntentEngine,
     get_default_aggressiveness_for_intent,
@@ -62,13 +64,16 @@ router = APIRouter()
 # Helper — run the full v2 optimisation pipeline, return raw dicts
 # ------------------------------------------------------------------
 
-def _run_pipeline(
+async def _run_pipeline(
     prompt: str,
     mode: str,
     aggressiveness: float | None,
     auto_aggressiveness: bool | None,
     test_query: str | None = None,
     intent_override: str | None = None,
+    use_gepa_repair: bool = False,
+    gepa_candidate_count: int = 3,
+    gepa_token_budget_ratio: float = 0.72,
 ) -> dict:
     """Execute the full prompt-compiler pipeline.
 
@@ -183,6 +188,31 @@ def _run_pipeline(
         test_query=query,
     )
 
+    # --- 6. Optional GEPA reflective repair -----------------------------
+    gepa_repair = None
+    gepa_applied = False
+    if use_gepa_repair and evaluator.should_trigger_gepa_repair(evaluation):
+        logger.info(
+            "GEPA repair triggered for drift %.4f (band %.2f-%.2f)",
+            evaluation.drift_score,
+            decision_engine.conservative_drift,
+            decision_engine.max_drift,
+        )
+        mutator = GepaMutator(model_loader=model_loader, evaluator=evaluator)
+        gepa_repair = await mutator.repair_prompt(
+            original_prompt=prompt,
+            broken_prompt=selected_text,
+            test_query=query,
+            max_candidates=gepa_candidate_count,
+            token_budget_ratio=gepa_token_budget_ratio,
+        )
+
+        if gepa_repair.applied:
+            gepa_applied = True
+            selected_text = gepa_repair.repaired_prompt
+            evaluation = gepa_repair.final_report
+            diff_result = diff_engine.compute_diff(original=prompt, compressed=selected_text)
+
     # Also run legacy single-candidate decision for backward-compat fields
     # Find the primary candidate (the selected one) to get token reduction %
     selected_cand = None
@@ -193,20 +223,25 @@ def _run_pipeline(
             selected_density = dreport
             break
 
-    # Compute token_reduction_percent from the selected candidate
-    if selected_cand and selected_cand.token_compression:
-        token_reduction_pct = selected_cand.token_compression.token_reduction_percent
-    elif selected_density:
-        token_reduction_pct = (1.0 - selected_density.compression_ratio) * 100.0
-    else:
-        token_reduction_pct = 0.0
+    # GEPA output is outside initial candidate_set; recompute metrics from text.
+    if gepa_applied:
+        selected_cand = None
+        selected_density = None
 
     if selected_density is None:
         selected_density = density_metrics.score(prompt, selected_text)
 
+    # Compute token reduction from selected candidate metadata when available,
+    # otherwise derive it from the final selected text ratio.
+    if selected_cand and selected_cand.token_compression:
+        token_reduction_pct = selected_cand.token_compression.token_reduction_percent
+    else:
+        token_reduction_pct = (1.0 - selected_density.compression_ratio) * 100.0
+
     legacy_decision = decision_engine.decide(
         token_reduction_percent=token_reduction_pct,
         drift_score=evaluation.drift_score,
+        use_gepa_repair=(use_gepa_repair and not gepa_applied),
     )
 
     # Build densification info from the selected candidate
@@ -227,6 +262,7 @@ def _run_pipeline(
         "candidates": candidate_set,
         "selection": selection,
         "density_reports": density_reports,
+        "gepa_repair": gepa_repair.to_dict() if gepa_repair is not None else None,
     }
 
 
@@ -257,13 +293,16 @@ async def predict(request: PredictRequest) -> PredictResponse:
 async def optimize(request: OptimizeRequest) -> OptimizeResponse:
     """Compress a prompt and return structured analysis."""
     try:
-        result = _run_pipeline(
+        result = await _run_pipeline(
             request.prompt,
             request.mode,
             request.aggressiveness,
             request.auto_aggressiveness,
             request.test_query,
             request.intent_override,
+            request.use_gepa_repair,
+            request.gepa_candidate_count,
+            request.gepa_token_budget_ratio,
         )
 
         # Build candidate list for response
@@ -302,6 +341,10 @@ async def optimize(request: OptimizeRequest) -> OptimizeResponse:
                 ],
             )
 
+        gepa_resp = None
+        if result.get("gepa_repair") is not None:
+            gepa_resp = GepaRepairResponse(**result["gepa_repair"])
+
         return OptimizeResponse(
             mode=result["mode"],
             compressed_prompt=result["selected_text"],
@@ -317,6 +360,7 @@ async def optimize(request: OptimizeRequest) -> OptimizeResponse:
             densification=densification_resp,
             candidates=candidate_responses,
             selection=selection_resp,
+            gepa_repair=gepa_resp,
         )
     except Exception as exc:
         logger.exception("Optimization pipeline failed")
@@ -331,13 +375,16 @@ async def optimize(request: OptimizeRequest) -> OptimizeResponse:
 async def optimize_and_store(request: OptimizeRequest) -> OptimizeAndStoreResponse:
     """Optimise a prompt **and** persist both versions to storage."""
     try:
-        result = _run_pipeline(
+        result = await _run_pipeline(
             request.prompt,
             request.mode,
             request.aggressiveness,
             request.auto_aggressiveness,
             request.test_query,
             request.intent_override,
+            request.use_gepa_repair,
+            request.gepa_candidate_count,
+            request.gepa_token_budget_ratio,
         )
         evaluation = result["evaluation"]
         decision = result["decision"]
@@ -468,7 +515,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     """
     try:
         # 1. Run the optimisation pipeline to get a compressed prompt
-        result = _run_pipeline(
+        result = await _run_pipeline(
             request.prompt,
             request.mode,
             request.aggressiveness,
@@ -531,7 +578,7 @@ async def evaluate_prompt(request: EvaluatePromptRequest) -> EvaluatePromptRespo
     try:
         optimized_prompt = request.optimized_prompt
         if not optimized_prompt:
-            optimization = _run_pipeline(
+            optimization = await _run_pipeline(
                 request.prompt,
                 request.mode,
                 request.aggressiveness,

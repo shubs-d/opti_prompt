@@ -21,6 +21,7 @@ class Decision(str, Enum):
     APPROVE = "APPROVE"
     REJECT = "REJECT"
     CONSERVATIVE_REQUIRED = "CONSERVATIVE_REQUIRED"
+    GEPA_REPAIR_REQUIRED = "GEPA_REPAIR_REQUIRED"
     FALLBACK = "FALLBACK"
 
 
@@ -93,12 +94,16 @@ class DecisionEngine:
         self,
         token_reduction_percent: float,
         drift_score: float,
+        use_gepa_repair: bool = False,
     ) -> Dict[str, Any]:
         """Evaluate compression metrics and return a decision.
 
         Args:
             token_reduction_percent: percentage of tokens removed.
             drift_score: semantic drift in [0, 1].
+            use_gepa_repair: when True, drift in the conservative-to-max
+                range emits ``GEPA_REPAIR_REQUIRED`` instead of
+                ``CONSERVATIVE_REQUIRED``.
 
         Returns:
             Dict with ``decision``, ``reason``, and input metrics.
@@ -111,6 +116,13 @@ class DecisionEngine:
             reason = (
                 f"Drift score {drift_score:.4f} exceeds maximum "
                 f"allowed drift {self.max_drift}."
+            )
+        elif use_gepa_repair and drift_score >= self.conservative_drift:
+            decision = Decision.GEPA_REPAIR_REQUIRED
+            reason = (
+                f"Drift score {drift_score:.4f} is in the GEPA repair band "
+                f"[{self.conservative_drift:.2f}, {self.max_drift:.2f}]. "
+                "Trigger reflective repair before final gating."
             )
         elif token_reduction_percent > self.max_reduction:
             decision = Decision.REJECT

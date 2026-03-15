@@ -54,6 +54,28 @@ class OptimizeRequest(BaseModel):
         default=None,
         description="Optional manual intent override.",
     )
+    use_gepa_repair: bool = Field(
+        default=False,
+        description=(
+            "Enable GEPA reflective repair when semantic drift enters the "
+            "recoverable band (0.08-0.15)."
+        ),
+    )
+    gepa_candidate_count: int = Field(
+        default=3,
+        ge=1,
+        le=6,
+        description="Number of GEPA mutation candidates to generate when repair is triggered.",
+    )
+    gepa_token_budget_ratio: float = Field(
+        default=0.72,
+        ge=0.4,
+        le=1.0,
+        description=(
+            "Target repaired-token budget as a ratio of original prompt tokens. "
+            "Lower values force more compact repaired prompts."
+        ),
+    )
 
 
 class EvaluatePromptRequest(BaseModel):
@@ -192,6 +214,31 @@ class DensificationResponse(BaseModel):
     rules_applied: List[Dict[str, str]] = Field(default_factory=list)
 
 
+class GepaCandidateResponse(BaseModel):
+    """Score details for a GEPA-generated repair candidate."""
+
+    prompt: str
+    reasoning: str
+    provider: str
+    model: str
+    drift_score: float
+    semantic_similarity: float
+    compression_ratio: float
+    density_score: float
+    pareto_utility: float
+
+
+class GepaRepairResponse(BaseModel):
+    """GEPA repair section included when reflective repair is enabled."""
+
+    applied: bool
+    repaired_prompt: str
+    final_drift_score: float
+    final_similarity: float
+    reflection_reasoning: str
+    candidates: List[GepaCandidateResponse] = Field(default_factory=list)
+
+
 # ------------------------------------------------------------------
 # Top-level response — v2 /optimize (superset of v1)
 # ------------------------------------------------------------------
@@ -214,6 +261,7 @@ class OptimizeResponse(BaseModel):
     densification: Optional[DensificationResponse] = None
     candidates: Optional[List[CandidateResponse]] = None
     selection: Optional[SelectionResponse] = None
+    gepa_repair: Optional[GepaRepairResponse] = None
 
 
 # ------------------------------------------------------------------

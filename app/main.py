@@ -12,9 +12,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from app.api.routes import router
+from app.config import ENTROPY_THRESHOLD
 from app.core.model_loader import ModelLoader
+from app.services.prompt_pruner import prune_prompt, regex_clean, token_entropy_prune
 from app.storage.evaluation_repository import EvaluationRepository
 from app.storage.prompt_repository import PromptRepository
 
@@ -112,6 +115,29 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+
+class OptimizePromptRequest(BaseModel):
+    """Request body for lightweight prompt preprocessing endpoint."""
+
+    prompt: str = Field(..., min_length=1)
+    entropy_threshold: float = Field(default=ENTROPY_THRESHOLD, ge=0.0)
+
+
+class OptimizePromptResponse(BaseModel):
+    """Response body for lightweight prompt preprocessing endpoint."""
+
+    optimized_prompt: str
+
+
+@app.post("/optimize_prompt", response_model=OptimizePromptResponse)
+async def optimize_prompt(request: OptimizePromptRequest) -> OptimizePromptResponse:
+    """Apply regex filler cleanup + token entropy pruning."""
+    # Keep explicit pipeline stages for threshold-aware pruning.
+    cleaned = regex_clean(request.prompt)
+    _ = token_entropy_prune(cleaned, threshold=request.entropy_threshold)
+    optimized = prune_prompt(request.prompt)
+    return OptimizePromptResponse(optimized_prompt=optimized)
 
 if FRONTEND_DIR.exists():
     app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

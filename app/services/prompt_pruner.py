@@ -11,7 +11,6 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from app.config import ENTROPY_THRESHOLD, FILLER_WORD_REGEX
 from app.core.model_loader import ModelLoader
-from app.utils.token_utils import rebuild_text_from_tokens
 
 _CODE_BLOCK_PATTERN = re.compile(r"```[\\s\\S]*?```")
 _WS_NORMALIZER = re.compile(r"[ \t]{2,}")
@@ -160,6 +159,8 @@ def _is_structural(token: str) -> bool:
     cleaned = token.replace("Ġ", "").replace("▁", "").strip()
     if not cleaned:
         return True
+    if any(ord(ch) > 127 for ch in cleaned):
+        return True
     return all(ch in ".,;:!?()[]{}\"'-/\\@#$%^&*+=<>|~`\n\r\t" for ch in cleaned)
 
 
@@ -220,11 +221,14 @@ def _prune_segment(segment: str, threshold: float) -> str:
         entropy_bits = _fallback_entropy_bits(token_ids)
 
     kept_tokens: List[str] = []
+    kept_token_ids: List[int] = []
     for idx, (tok, ent) in enumerate(zip(token_strings, entropy_bits)):
         if idx == 0 or _is_protected_token(tok) or ent >= threshold:
             kept_tokens.append(tok)
+            kept_token_ids.append(token_ids[idx])
 
-    rebuilt = rebuild_text_from_tokens(kept_tokens)
+    # Decode from token ids to preserve byte-level tokenizer fidelity.
+    rebuilt = tokenizer.decode(kept_token_ids, skip_special_tokens=True)
     return _normalize_non_code_whitespace(rebuilt) if rebuilt else segment.strip()
 
 

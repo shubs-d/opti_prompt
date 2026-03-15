@@ -178,7 +178,7 @@ class GepaMutator:
             compressed_prompt=prompt,
             test_query=test_query,
         )
-        density = self._density.score(original_prompt=original_prompt, candidate_text=prompt)
+        density = self._density.score(original_text=original_prompt, candidate_text=prompt)
 
         # Utility over Pareto front for deterministic tie-breaking.
         similarity_component = eval_report.semantic_similarity

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any
 
 from app.core.model_loader import ModelLoader
-from app.utils.token_utils import compute_threshold, rebuild_text_from_tokens
+from app.utils.token_utils import compute_threshold
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ class Compressor:
 
         # 3. Partition tokens
         kept_tokens: List[str] = []
+        kept_token_ids: List[int] = []
         kept_indices: List[int] = []
         removed_tokens: List[str] = []
 
@@ -113,12 +114,14 @@ class Compressor:
             # or punctuation — removing them usually destroys readability.
             if idx == 0 or score >= threshold or self._is_structural(tok):
                 kept_tokens.append(tok)
+                kept_token_ids.append(int(input_ids[0, idx].item()))
                 kept_indices.append(idx)
             else:
                 removed_tokens.append(tok)
 
         # 4. Reconstruct text
-        compressed_text = rebuild_text_from_tokens(kept_tokens)
+        # Decode from token ids for correct byte-level token handling.
+        compressed_text = self._model.decode_tokens(kept_token_ids)
         compressed_count = len(kept_tokens)
 
         reduction_pct = (
@@ -153,6 +156,10 @@ class Compressor:
         """Return True if *token* is punctuation / whitespace that should be kept."""
         cleaned = token.replace("Ġ", "").replace("▁", "").strip()
         if not cleaned:
+            return True
+        # Byte-level BPE may split Unicode punctuation into non-ASCII
+        # fragments; dropping those creates replacement-char artifacts.
+        if any(ord(ch) > 127 for ch in cleaned):
             return True
         # Keep common structural symbols
         if all(ch in ".,;:!?()[]{}\"'-/\\@#$%^&*+=<>|~`\n\r\t" for ch in cleaned):

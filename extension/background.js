@@ -6,7 +6,7 @@
  * that content scripts face on third-party pages.
  */
 
-const API_BASE = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
+const DEFAULT_API_BASE = "http://127.0.0.1:8000";
 const PREDICTION_CACHE = new Map();
 const PREDICTION_CACHE_MAX = 120;
 
@@ -23,7 +23,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "HEALTH_CHECK") {
-    handleHealthCheck()
+    handleHealthCheck(message.payload)
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -62,13 +62,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /* API helpers                                                         */
 /* ------------------------------------------------------------------ */
 
-async function handleOptimize({ prompt, mode, aggressiveness, auto_aggressiveness, intent_override }) {
+async function handleOptimize({
+  prompt,
+  mode,
+  aggressiveness,
+  auto_aggressiveness,
+  intent_override,
+  use_gepa,
+  gepa_generations,
+  gepa_population_size,
+  gepa_time_budget_seconds,
+  backend_url,
+}) {
+  const apiBase = await getApiBase(backend_url);
   const body = { prompt, auto_aggressiveness: auto_aggressiveness ?? true };
   if (aggressiveness != null) body.aggressiveness = aggressiveness;
   if (mode) body.mode = mode;
   if (intent_override) body.intent_override = intent_override;
+  if (use_gepa != null) body.use_gepa = !!use_gepa;
+  if (gepa_generations != null) body.gepa_generations = Number(gepa_generations);
+  if (gepa_population_size != null) body.gepa_population_size = Number(gepa_population_size);
+  if (gepa_time_budget_seconds != null) body.gepa_time_budget_seconds = Number(gepa_time_budget_seconds);
 
-  const res = await fetch(`${API_BASE}/optimize`, {
+  const res = await fetch(`${apiBase}/optimize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -82,19 +98,21 @@ async function handleOptimize({ prompt, mode, aggressiveness, auto_aggressivenes
   return { ok: true, data: await res.json() };
 }
 
-async function handleHealthCheck() {
-  const res = await fetch(`${API_BASE}/health`);
+async function handleHealthCheck(payload = {}) {
+  const apiBase = await getApiBase(payload.backend_url);
+  const res = await fetch(`${apiBase}/health`);
   if (!res.ok) throw new Error(`Health check failed (${res.status})`);
   return { ok: true, data: await res.json() };
 }
 
-async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness, intent_override }) {
+async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness, intent_override, backend_url }) {
+  const apiBase = await getApiBase(backend_url);
   const body = { prompt, auto_aggressiveness: auto_aggressiveness ?? true };
   if (aggressiveness != null) body.aggressiveness = aggressiveness;
   if (mode) body.mode = mode;
   if (intent_override) body.intent_override = intent_override;
 
-  const res = await fetch(`${API_BASE}/analyze`, {
+  const res = await fetch(`${apiBase}/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -109,6 +127,7 @@ async function handleAnalyze({ prompt, mode, aggressiveness, auto_aggressiveness
 }
 
 async function handlePredict({ text }) {
+  const apiBase = await getApiBase();
   const normalized = String(text || "").trim();
   if (!normalized) return { ok: true, data: { prediction: "" } };
 
@@ -116,7 +135,7 @@ async function handlePredict({ text }) {
     return { ok: true, data: { prediction: PREDICTION_CACHE.get(normalized) } };
   }
 
-  const res = await fetch(`${API_BASE}/predict`, {
+  const res = await fetch(`${apiBase}/predict`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: normalized }),
@@ -140,6 +159,23 @@ async function handlePredict({ text }) {
   }
 
   return { ok: true, data: { prediction } };
+}
+
+async function getApiBase(override = null) {
+  if (override && String(override).trim()) {
+    return String(override).trim().replace(/\/$/, "");
+  }
+
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["opti_settings"], (items) => {
+      const configured = items?.opti_settings?.backendUrl;
+      if (configured && String(configured).trim()) {
+        resolve(String(configured).trim().replace(/\/$/, ""));
+        return;
+      }
+      resolve(DEFAULT_API_BASE);
+    });
+  });
 }
 
 /* ------------------------------------------------------------------ */

@@ -60,6 +60,8 @@
     </div>
 
     <div class="card">
+      <label class="label" for="backendUrl">Backend URL</label>
+      <input id="backendUrl" class="input" type="text" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000" />
       <label class="label">Mode</label>
       <div class="mode-selector">
         <button class="mode-btn active" data-mode="optimize">⚡ Optimize</button>
@@ -88,6 +90,26 @@
       <div class="slider-inline" id="aggrGroup">
         <input type="range" id="aggr" min="0.05" max="0.95" step="0.05" value="0.3" disabled />
         <span class="slider-val" id="aggrVal">auto</span>
+      </div>
+
+      <div class="toggle-grid" style="margin-top:10px;">
+        <label class="toggle-item">
+          <input type="checkbox" id="useGepa" checked />
+          <span>Enable GEPA evolution</span>
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="label" for="gepaGenerations">GEPA Generations</label>
+        <input id="gepaGenerations" class="input" type="number" min="1" max="10" step="1" value="6" />
+      </div>
+      <div class="form-row">
+        <label class="label" for="gepaPopulationSize">GEPA Population</label>
+        <input id="gepaPopulationSize" class="input" type="number" min="4" max="12" step="1" value="6" />
+      </div>
+      <div class="form-row">
+        <label class="label" for="gepaTimeBudget">GEPA Time Budget (s)</label>
+        <input id="gepaTimeBudget" class="input" type="number" min="0.4" max="3.0" step="0.1" value="1.5" />
       </div>
     </div>
 

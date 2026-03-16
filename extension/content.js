@@ -3,7 +3,7 @@
  *
  * Injects a dropdown button group into AI chat interfaces.
  * Shows a result preview panel instead of directly replacing text.
- * Supports: ChatGPT, Claude
+ * Supports: ChatGPT, Claude, Gemini, Perplexity
  */
 
 (() => {
@@ -17,6 +17,11 @@
 
   let autoOptimizeEnabled = false;
   let preferredMode = "optimize";
+  let backendUrl = "http://127.0.0.1:8000";
+  let useGepa = true;
+  let gepaGenerations = 6;
+  let gepaPopulationSize = 6;
+  let gepaTimeBudget = 1.5;
   let autoOptimizeTimer = null;
   let lastAutoOptimizedText = "";
   let isProgrammaticEdit = false;
@@ -33,6 +38,14 @@
       'div[contenteditable="true"].ProseMirror',
       'fieldset div[contenteditable="true"]',
     ],
+    "gemini.google.com": [
+      'div[contenteditable="true"]',
+      'textarea',
+    ],
+    "www.perplexity.ai": [
+      'textarea',
+      'div[contenteditable="true"]',
+    ],
   };
 
   /* ---------------------------------------------------------------- */
@@ -42,6 +55,8 @@
     const h = location.hostname;
     if (h.includes("chatgpt.com")) return "chatgpt.com";
     if (h.includes("claude.ai"))   return "claude.ai";
+    if (h.includes("gemini.google.com")) return "gemini.google.com";
+    if (h.includes("perplexity.ai")) return "www.perplexity.ai";
     return null;
   }
 
@@ -202,7 +217,19 @@
     try {
       const res = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
-          { type: "OPTIMIZE", payload: { prompt, mode, auto_aggressiveness: true } },
+          {
+            type: "OPTIMIZE",
+            payload: {
+              prompt,
+              mode,
+              auto_aggressiveness: true,
+              backend_url: backendUrl,
+              use_gepa: useGepa,
+              gepa_generations: gepaGenerations,
+              gepa_population_size: gepaPopulationSize,
+              gepa_time_budget_seconds: gepaTimeBudget,
+            },
+          },
           (response) => {
             if (chrome.runtime.lastError) {
               reject(new Error(chrome.runtime.lastError.message));
@@ -395,6 +422,11 @@
       const settings = items.opti_settings || {};
       autoOptimizeEnabled = !!settings.autoOptimize;
       preferredMode = settings.mode || "optimize";
+      backendUrl = settings.backendUrl || "http://127.0.0.1:8000";
+      useGepa = settings.useGepa ?? true;
+      gepaGenerations = Number(settings.gepaGenerations ?? 6);
+      gepaPopulationSize = Number(settings.gepaPopulationSize ?? 6);
+      gepaTimeBudget = Number(settings.gepaTimeBudget ?? 1.5);
     });
   }
 
@@ -454,6 +486,11 @@
         const next = changes.opti_settings.newValue || {};
         autoOptimizeEnabled = !!next.autoOptimize;
         preferredMode = next.mode || "optimize";
+        backendUrl = next.backendUrl || "http://127.0.0.1:8000";
+        useGepa = next.useGepa ?? true;
+        gepaGenerations = Number(next.gepaGenerations ?? 6);
+        gepaPopulationSize = Number(next.gepaPopulationSize ?? 6);
+        gepaTimeBudget = Number(next.gepaTimeBudget ?? 1.5);
       }
     });
 

@@ -212,6 +212,14 @@ textarea:focus, .input:focus { border-color: var(--accent-2); }
 .slider-inline input[type="range"] { flex: 1; accent-color: var(--accent); }
 .slider-val { color: var(--muted); font-family: var(--mono); min-width: 36px; text-align: right; }
 
+.form-row {
+  margin-top: 8px;
+}
+
+.form-row .label {
+  margin-bottom: 4px;
+}
+
 .action-card { padding: 0; overflow: hidden; }
 .full { width: 100%; }
 .btn-primary,

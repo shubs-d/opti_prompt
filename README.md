@@ -66,17 +66,8 @@ API docs are available at `http://127.0.0.1:8000/docs`.
 
 By default, `extension/background.js` points to your configured backend.
 
-## Extension Setup (New Minimal Frontend)
-
-A clean MV3 extension is available at `opti_prompt_extension/`.
-
-1. Open `chrome://extensions`.
-2. Enable Developer mode.
-3. Click `Load unpacked` and select `opti_prompt_extension/`.
-4. Start backend: `uvicorn app.main:app --reload`.
-5. Open ChatGPT, Claude, Gemini, or Perplexity.
-6. Use popup to set backend URL and aggressiveness.
-7. Click `Optimize Prompt` button injected near the prompt box.
+The extension popup now includes GEPA controls (`use_gepa`, generations,
+population size, time budget) and a configurable backend URL.
 
 ## API Endpoints
 

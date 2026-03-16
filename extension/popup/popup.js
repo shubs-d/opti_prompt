@@ -24,7 +24,12 @@
     promptGhostText: $("promptGhostText"),
     autoMode: $("autoMode"),
     autoOptimizeToggle: $("autoOptimizeToggle"),
+    backendUrl: $("backendUrl"),
     intentOverride: $("intentOverride"),
+    useGepa: $("useGepa"),
+    gepaGenerations: $("gepaGenerations"),
+    gepaPopulationSize: $("gepaPopulationSize"),
+    gepaTimeBudget: $("gepaTimeBudget"),
     aggr: $("aggr"),
     aggrVal: $("aggrVal"),
     btnOptimize: $("btnOptimize"),
@@ -161,6 +166,11 @@
     });
 
     refs.autoOptimizeToggle.addEventListener("change", saveSettings);
+    refs.backendUrl.addEventListener("change", saveSettings);
+    refs.useGepa.addEventListener("change", saveSettings);
+    refs.gepaGenerations.addEventListener("change", saveSettings);
+    refs.gepaPopulationSize.addEventListener("change", saveSettings);
+    refs.gepaTimeBudget.addEventListener("change", saveSettings);
     refs.intentOverride.addEventListener("change", () => {
       const previousIntent = state.intentOverride;
       state.intentOverride = refs.intentOverride.value;
@@ -276,7 +286,11 @@
     refs.btnAnalyzeSpinner.classList.remove("hidden");
     refs.btnAnalyzeText.textContent = "Analyzing…";
 
-    const payload = { prompt, mode: state.analyzeMode };
+    const payload = {
+      prompt,
+      mode: state.analyzeMode,
+      backend_url: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
+    };
     if (state.analyzeIntentOverride) payload.intent_override = state.analyzeIntentOverride;
 
     chrome.runtime.sendMessage({ type: "ANALYZE", payload }, (res) => {
@@ -412,6 +426,11 @@
       prompt,
       mode: state.mode,
       auto_aggressiveness: refs.autoMode.checked,
+      backend_url: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
+      use_gepa: refs.useGepa.checked,
+      gepa_generations: Number(refs.gepaGenerations.value || 6),
+      gepa_population_size: Number(refs.gepaPopulationSize.value || 6),
+      gepa_time_budget_seconds: Number(refs.gepaTimeBudget.value || 1.5),
     };
     if (state.intentOverride) payload.intent_override = state.intentOverride;
     if (!refs.autoMode.checked) payload.aggressiveness = Number(refs.aggr.value);
@@ -949,9 +968,14 @@
   function restoreSettings() {
     chrome.storage.local.get([STORAGE_KEYS.settings], (items) => {
       const settings = items[STORAGE_KEYS.settings] || {};
+      refs.backendUrl.value = settings.backendUrl || "http://127.0.0.1:8000";
       refs.autoMode.checked = settings.autoAggressiveness ?? true;
       refs.autoOptimizeToggle.checked = settings.autoOptimize ?? false;
       refs.aggr.value = settings.aggressiveness ?? 0.3;
+      refs.useGepa.checked = settings.useGepa ?? true;
+      refs.gepaGenerations.value = settings.gepaGenerations ?? 6;
+      refs.gepaPopulationSize.value = settings.gepaPopulationSize ?? 6;
+      refs.gepaTimeBudget.value = settings.gepaTimeBudget ?? 1.5;
       refs.aggr.disabled = refs.autoMode.checked;
       refs.aggrVal.textContent = refs.autoMode.checked ? "auto" : Number(refs.aggr.value).toFixed(2);
       state.mode = settings.mode || "optimize";
@@ -967,9 +991,14 @@
     chrome.storage.local.set({
       [STORAGE_KEYS.settings]: {
         mode: state.mode,
+        backendUrl: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
         aggressiveness: Number(refs.aggr.value),
         autoAggressiveness: refs.autoMode.checked,
         autoOptimize: refs.autoOptimizeToggle.checked,
+        useGepa: refs.useGepa.checked,
+        gepaGenerations: Number(refs.gepaGenerations.value || 6),
+        gepaPopulationSize: Number(refs.gepaPopulationSize.value || 6),
+        gepaTimeBudget: Number(refs.gepaTimeBudget.value || 1.5),
         intentOverride: state.intentOverride,
         analyzeIntentOverride: state.analyzeIntentOverride,
       },
@@ -977,7 +1006,10 @@
   }
 
   function checkHealth() {
-    chrome.runtime.sendMessage({ type: "HEALTH_CHECK" }, (res) => {
+    chrome.runtime.sendMessage({
+      type: "HEALTH_CHECK",
+      payload: { backend_url: refs.backendUrl?.value?.trim() || "http://127.0.0.1:8000" },
+    }, (res) => {
       const online = !chrome.runtime.lastError && !!res?.ok;
       refs.statusDot.className = `status-dot ${online ? "online" : "offline"}`;
       refs.statusDot.title = online ? "Backend online" : "Backend offline";

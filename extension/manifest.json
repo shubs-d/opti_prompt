@@ -25,7 +25,9 @@
     "http://127.0.0.1:8000/*",
     "http://localhost:8000/*",
     "https://chatgpt.com/*",
-    "https://claude.ai/*"
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -34,7 +36,9 @@
     {
       "matches": [
         "https://chatgpt.com/*",
-        "https://claude.ai/*"
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],

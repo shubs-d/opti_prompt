@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OptiPrompt</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="popup-body">
+  <main class="popup-card">
+    <h1>OptiPrompt</h1>
+    <p class="muted">Configure backend and optimization intensity.</p>
+
+    <label for="backendUrl">Backend URL</label>
+    <input id="backendUrl" type="text" placeholder="http://127.0.0.1:8000" />
+
+    <label for="aggressiveness">Aggressiveness</label>
+    <input id="aggressiveness" type="range" min="0.0" max="1.0" step="0.05" value="0.3" />
+    <div class="row">
+      <span class="muted">Conservative</span>
+      <strong id="aggressivenessValue">0.30</strong>
+      <span class="muted">Aggressive</span>
+    </div>
+
+    <div class="button-row">
+      <button id="saveSettings" class="btn-primary">Save</button>
+      <button id="testBackend" class="btn-secondary">Test Backend</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

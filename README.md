@@ -8,10 +8,30 @@ and returns the best version with traceable evaluation data.
 
 - Prompt optimization with configurable or auto aggressiveness
 - Multi-candidate generation and selection
+- GEPA evolutionary post-optimization (Pareto frontier on drift vs reduction)
 - Semantic drift and response-quality evaluation
 - Structured diff output
 - Prompt storage and retrieval endpoints
 - Chrome extension integration (Manifest V3)
+
+## GEPA Architecture
+
+The optimize pipeline now includes a GEPA layer after baseline candidate selection:
+
+`Prompt -> Baseline Compression -> GEPA Evolution -> Evaluation -> Decision`
+
+GEPA module layout:
+
+```text
+app/core/gepa/
+├── optimizer.py      # Main evolutionary loop
+├── population.py     # Candidate and metrics data models
+├── mutation.py       # Mutation operators
+├── pareto.py         # Pareto frontier selection
+├── reflection.py     # Lightweight convergence/adaptation logic
+├── mutator.py        # Existing reflective repair module (kept for compatibility)
+└── reflection_llm.py # Existing reflection provider abstraction
+```
 
 ## Tech Stack
 
@@ -36,7 +56,7 @@ curl -s http://127.0.0.1:8000/health
 
 API docs are available at `http://127.0.0.1:8000/docs`.
 
-## Extension Setup
+## Extension Setup (Existing)
 
 1. Open `chrome://extensions`.
 2. Enable Developer mode.
@@ -44,7 +64,19 @@ API docs are available at `http://127.0.0.1:8000/docs`.
 4. Start the backend (`uvicorn app.main:app --reload`).
 5. Open ChatGPT or Claude and use the extension popup.
 
-By default, `extension/background.js` points to `http://127.0.0.1:8000`.
+By default, `extension/background.js` points to your configured backend.
+
+## Extension Setup (New Minimal Frontend)
+
+A clean MV3 extension is available at `opti_prompt_extension/`.
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Click `Load unpacked` and select `opti_prompt_extension/`.
+4. Start backend: `uvicorn app.main:app --reload`.
+5. Open ChatGPT, Claude, Gemini, or Perplexity.
+6. Use popup to set backend URL and aggressiveness.
+7. Click `Optimize Prompt` button injected near the prompt box.
 
 ## API Endpoints
 

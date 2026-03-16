@@ -44,6 +44,7 @@ from app.core.density_metrics import DensityMetrics
 from app.core.diff_engine import DiffEngine
 from app.core.evaluator import Evaluator
 from app.core.gepa.mutator import GepaMutator
+from app.core.gepa.optimizer import GepaOptimizer
 from app.core.intent_engine import (
     IntentEngine,
     get_default_aggressiveness_for_intent,
@@ -74,6 +75,10 @@ async def _run_pipeline(
     use_gepa_repair: bool = False,
     gepa_candidate_count: int = 3,
     gepa_token_budget_ratio: float = 0.72,
+    use_gepa: bool = True,
+    gepa_generations: int = 6,
+    gepa_population_size: int = 6,
+    gepa_time_budget_seconds: float = 1.5,
 ) -> dict:
     """Execute the full prompt-compiler pipeline.
 
@@ -176,19 +181,44 @@ async def _run_pipeline(
 
     selected_text = selection["selected_text"]
 
-    # --- 5. Diff + evaluation on the selected output --------------------
+    # --- 5. GEPA evolutionary optimization on selected baseline ----------
+    evaluator = Evaluator(model_loader)
+    query = test_query or "Summarize the above context."
+
+    gepa_summary = None
+    if use_gepa:
+        gepa_optimizer = GepaOptimizer(
+            model_loader=model_loader,
+            compressor=Compressor(model_loader),
+            evaluator=evaluator,
+        )
+        gepa_result = gepa_optimizer.optimize(
+            original_prompt=prompt,
+            baseline_prompt=selected_text,
+            test_query=query,
+            base_aggressiveness=effective_aggressiveness,
+            generations=gepa_generations,
+            population_size=gepa_population_size,
+            time_budget_seconds=gepa_time_budget_seconds,
+        )
+        selected_text = gepa_result.best_prompt
+        gepa_summary = {
+            "generations_run": gepa_result.generations_run,
+            "frontier_size": gepa_result.frontier_size,
+            "summaries": gepa_result.summaries,
+        }
+
+    # --- 6. Diff + evaluation on the selected output --------------------
     diff_engine = DiffEngine()
     diff_result = diff_engine.compute_diff(original=prompt, compressed=selected_text)
 
-    evaluator = Evaluator(model_loader)
-    query = test_query or "Summarize the above context."
     evaluation = evaluator.evaluate(
         original_prompt=prompt,
         compressed_prompt=selected_text,
         test_query=query,
     )
 
-    # --- 6. Optional GEPA reflective repair -----------------------------
+    # --- 7. Optional GEPA reflective repair -----------------------------
     gepa_repair = None
     gepa_applied = False
     if use_gepa_repair and evaluator.should_trigger_gepa_repair(evaluation):
@@ -262,6 +292,7 @@ async def _run_pipeline(
         "candidates": candidate_set,
         "selection": selection,
         "density_reports": density_reports,
+        "gepa": gepa_summary,
         "gepa_repair": gepa_repair.to_dict() if gepa_repair is not None else None,
     }
 
@@ -303,6 +334,10 @@ async def optimize(request: OptimizeRequest) -> OptimizeResponse:
             request.use_gepa_repair,
             request.gepa_candidate_count,
             request.gepa_token_budget_ratio,
+            request.use_gepa,
+            request.gepa_generations,
+            request.gepa_population_size,
+            request.gepa_time_budget_seconds,
         )
 
         # Build candidate list for response
@@ -385,6 +420,10 @@ async def optimize_and_store(request: OptimizeRequest) -> OptimizeAndStoreRespon
             request.use_gepa_repair,
             request.gepa_candidate_count,
             request.gepa_token_budget_ratio,
+            request.use_gepa,
+            request.gepa_generations,
+            request.gepa_population_size,
+            request.gepa_time_budget_seconds,
         )
         evaluation = result["evaluation"]
         decision = result["decision"]

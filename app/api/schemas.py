@@ -76,6 +76,28 @@ class OptimizeRequest(BaseModel):
             "Lower values force more compact repaired prompts."
         ),
     )
+    use_gepa: bool = Field(
+        default=True,
+        description="Enable GEPA evolutionary optimization after baseline compression.",
+    )
+    gepa_generations: int = Field(
+        default=6,
+        ge=1,
+        le=10,
+        description="Maximum GEPA generations to run.",
+    )
+    gepa_population_size: int = Field(
+        default=6,
+        ge=4,
+        le=12,
+        description="GEPA candidate population size per generation.",
+    )
+    gepa_time_budget_seconds: float = Field(
+        default=1.5,
+        ge=0.4,
+        le=3.0,
+        description="Soft runtime budget for GEPA optimization.",
+    )
 
 
 class EvaluatePromptRequest(BaseModel):

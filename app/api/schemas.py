@@ -6,6 +6,12 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.config import (
+    CONTROLLED_ENFORCE_COMPRESSION_WINDOW,
+    CONTROLLED_MAX_TOTAL_COMPRESSION_PERCENT,
+    CONTROLLED_MIN_TOTAL_COMPRESSION_PERCENT,
+)
+
 
 # ------------------------------------------------------------------
 # Request
@@ -97,6 +103,25 @@ class OptimizeRequest(BaseModel):
         ge=0.4,
         le=3.0,
         description="Soft runtime budget for GEPA optimization.",
+    )
+    enforce_compression_window: bool = Field(
+        default=CONTROLLED_ENFORCE_COMPRESSION_WINDOW,
+        description=(
+            "When enabled, final output is constrained to the configured "
+            "total compression window."
+        ),
+    )
+    min_total_compression_percent: float = Field(
+        default=CONTROLLED_MIN_TOTAL_COMPRESSION_PERCENT,
+        ge=0.0,
+        le=100.0,
+        description="Minimum allowed total compression percentage.",
+    )
+    max_total_compression_percent: float = Field(
+        default=CONTROLLED_MAX_TOTAL_COMPRESSION_PERCENT,
+        ge=0.0,
+        le=100.0,
+        description="Maximum allowed total compression percentage.",
     )
 
 

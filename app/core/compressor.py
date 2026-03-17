@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any
@@ -165,3 +166,67 @@ class Compressor:
         if all(ch in ".,;:!?()[]{}\"'-/\\@#$%^&*+=<>|~`\n\r\t" for ch in cleaned):
             return True
         return False
+
+
+def compress_with_genome(text: str, genome_rules: List[str], use_cache: bool = True) -> str:
+    """Apply an evolved ordered rule genome to a prompt."""
+    if not text or not genome_rules:
+        return text
+
+    try:
+        # Imported lazily to keep the main app functional if evolution modules
+        # are not present in a minimal deployment.
+        from rules import apply_rule
+
+        out = text
+        for rule in genome_rules:
+            out = apply_rule(rule, out, use_cache=use_cache)
+        return " ".join(out.split())
+    except Exception:
+        logger.exception("Genome compression failed; returning original prompt")
+        return text
+
+
+def fluency_penalty(original: str, compressed: str) -> float:
+    """Heuristic fluency/structure penalty used in shared fitness scoring."""
+    penalty = 0.0
+    if original.count("\n") >= 2 and compressed.count("\n") == 0:
+        penalty += 0.15
+    if len(compressed.strip()) < 40:
+        penalty += 0.25
+    if compressed.count("(") != compressed.count(")"):
+        penalty += 0.10
+    if compressed.count("[") != compressed.count("]"):
+        penalty += 0.08
+    return min(1.0, penalty)
+
+
+def score_compression_variant(
+    original_prompt: str,
+    candidate_prompt: str,
+    evaluator: "Evaluator",  # noqa: F821
+    density_metrics: "DensityMetrics",  # noqa: F821
+    test_query: str,
+) -> Dict[str, float]:
+    """Compute reusable fitness metrics for a candidate compression."""
+    density_report = density_metrics.score(original_prompt, candidate_prompt)
+    eval_report = evaluator.evaluate(
+        original_prompt=original_prompt,
+        compressed_prompt=candidate_prompt,
+        test_query=test_query,
+    )
+
+    reduction = max(0.0, min(1.0, 1.0 - density_report.compression_ratio))
+    drift = max(0.0, min(1.0, eval_report.drift_score))
+    penalty = fluency_penalty(original_prompt, candidate_prompt)
+
+    # Match aggressive compression weighting from evolution fitness.
+    fitness = (2.5 * reduction) - (0.6 * drift) - (0.4 * penalty)
+    fitness = math.tanh(fitness)
+
+    return {
+        "reduction_percent": reduction * 100.0,
+        "drift_score": drift,
+        "fluency_penalty": penalty,
+        "fitness": fitness,
+    }

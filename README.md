@@ -56,6 +56,52 @@ curl -s http://127.0.0.1:8000/health
 
 API docs are available at `http://127.0.0.1:8000/docs`.
 
+## Azure Deployment (App Service)
+
+This repository is configured for Azure App Service deployment:
+
+- `Procfile` uses production startup via `gunicorn` + `uvicorn` worker
+- `.webappignore` excludes local/dev/training artifacts from deployment packages
+
+### 1) Create Azure resources
+
+```bash
+az group create --name <resource-group> --location <region>
+az appservice plan create \
+  --name <app-service-plan> \
+  --resource-group <resource-group> \
+  --sku B1 \
+  --is-linux
+az webapp create \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --plan <app-service-plan> \
+  --runtime "PYTHON|3.12"
+```
+
+### 2) Configure startup command
+
+```bash
+az webapp config set \
+  --resource-group <resource-group> \
+  --name <app-name> \
+  --startup-file "gunicorn -k uvicorn.workers.UvicornWorker --bind=0.0.0.0:\$PORT app.main:app"
+```
+
+### 3) Deploy
+
+```bash
+az webapp up --name <app-name> --resource-group <resource-group>
+```
+
+### 4) Validate
+
+```bash
+curl -s https://<app-name>.azurewebsites.net/health
+```
+
+If you use the extension remotely, add your Azure URL in the extension backend setting and keep CORS configured as shown below.
+
 ## Extension Setup (Existing)
 
 1. Open `chrome://extensions`.

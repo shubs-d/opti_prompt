@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-03-17T19:13:53.787760Z",
+  "best_genome": [
+    "AGGRESSIVE_SENTENCE_FILTER",
+    "CLAUSE_LEVEL_PRUNE",
+    "REMOVE_ADVERBS",
+    "PRESERVE_ENTITIES",
+    "REMOVE_GREETING",
+    "MERGE_DUPLICATES",
+    "REMOVE_HEDGING",
+    "REMOVE_FILLER",
+    "KEEP_LIST_STRUCTURE"
+  ],
+  "metrics": {
+    "reduction_percent": 9.301515151515153,
+    "drift_score": 0.01626467948892473,
+    "fitness": 0.21916524985874455
+  },
+  "source": {
+    "results_file": "evolution_results_final.json",
+    "population_size": 35,
+    "generations": 15,
+    "eval_batch_size": 120
+  }
+}

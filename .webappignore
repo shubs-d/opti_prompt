@@ -12,3 +12,13 @@ __pycache__/
 *.db
 *.ipynb
 node_modules/
+extension/
+.github/
+.vscode/
+data/
+evolution_results*.json
+dataset_loader.py
+evolution.py
+evaluator.py
+genome.py
+main.py

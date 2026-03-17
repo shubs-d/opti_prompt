@@ -9,3 +9,4 @@ __pycache__/
 .vscode/
 *.log
 .DS_Store
+evolution_results*.json

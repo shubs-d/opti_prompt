@@ -18,3 +18,9 @@ FILLER_WORD_REGEX = (
 
 # Bits of token entropy below this are considered low-information by default.
 ENTROPY_THRESHOLD = 2.5
+
+# Controlled second-stage compression window (total compression target).
+# The backend enforces this range when the controlled mode is enabled.
+CONTROLLED_ENFORCE_COMPRESSION_WINDOW = True
+CONTROLLED_MIN_TOTAL_COMPRESSION_PERCENT = 20.0
+CONTROLLED_MAX_TOTAL_COMPRESSION_PERCENT = 30.0

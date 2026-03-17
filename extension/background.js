@@ -72,6 +72,9 @@ async function handleOptimize({
   gepa_generations,
   gepa_population_size,
   gepa_time_budget_seconds,
+  enforce_compression_window,
+  min_total_compression_percent,
+  max_total_compression_percent,
   backend_url,
 }) {
   const apiBase = await getApiBase(backend_url);
@@ -83,6 +86,13 @@ async function handleOptimize({
   if (gepa_generations != null) body.gepa_generations = Number(gepa_generations);
   if (gepa_population_size != null) body.gepa_population_size = Number(gepa_population_size);
   if (gepa_time_budget_seconds != null) body.gepa_time_budget_seconds = Number(gepa_time_budget_seconds);
+  if (enforce_compression_window != null) body.enforce_compression_window = !!enforce_compression_window;
+  if (min_total_compression_percent != null) {
+    body.min_total_compression_percent = Number(min_total_compression_percent);
+  }
+  if (max_total_compression_percent != null) {
+    body.max_total_compression_percent = Number(max_total_compression_percent);
+  }
 
   const res = await fetch(`${apiBase}/optimize`, {
     method: "POST",

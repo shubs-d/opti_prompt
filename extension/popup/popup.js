@@ -289,7 +289,7 @@
     const payload = {
       prompt,
       mode: state.analyzeMode,
-      backend_url: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
+      backend_url: refs.backendUrl.value.trim() || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net",
     };
     if (state.analyzeIntentOverride) payload.intent_override = state.analyzeIntentOverride;
 
@@ -426,7 +426,7 @@
       prompt,
       mode: state.mode,
       auto_aggressiveness: refs.autoMode.checked,
-      backend_url: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
+      backend_url: refs.backendUrl.value.trim() || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net",
       use_gepa: refs.useGepa.checked,
       gepa_generations: Number(refs.gepaGenerations.value || 6),
       gepa_population_size: Number(refs.gepaPopulationSize.value || 6),
@@ -968,7 +968,7 @@
   function restoreSettings() {
     chrome.storage.local.get([STORAGE_KEYS.settings], (items) => {
       const settings = items[STORAGE_KEYS.settings] || {};
-      refs.backendUrl.value = settings.backendUrl || "http://127.0.0.1:8000";
+      refs.backendUrl.value = settings.backendUrl || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
       refs.autoMode.checked = settings.autoAggressiveness ?? true;
       refs.autoOptimizeToggle.checked = settings.autoOptimize ?? false;
       refs.aggr.value = settings.aggressiveness ?? 0.3;
@@ -991,7 +991,7 @@
     chrome.storage.local.set({
       [STORAGE_KEYS.settings]: {
         mode: state.mode,
-        backendUrl: refs.backendUrl.value.trim() || "http://127.0.0.1:8000",
+        backendUrl: refs.backendUrl.value.trim() || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net",
         aggressiveness: Number(refs.aggr.value),
         autoAggressiveness: refs.autoMode.checked,
         autoOptimize: refs.autoOptimizeToggle.checked,
@@ -1008,7 +1008,7 @@
   function checkHealth() {
     chrome.runtime.sendMessage({
       type: "HEALTH_CHECK",
-      payload: { backend_url: refs.backendUrl?.value?.trim() || "http://127.0.0.1:8000" },
+      payload: { backend_url: refs.backendUrl?.value?.trim() || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net" },
     }, (res) => {
       const online = !chrome.runtime.lastError && !!res?.ok;
       refs.statusDot.className = `status-dot ${online ? "online" : "offline"}`;

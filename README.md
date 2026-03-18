@@ -51,10 +51,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 
 # 3) Smoke test
-curl -s http://127.0.0.1:8000/health
+curl -s https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net/health
 ```
 
-API docs are available at `http://127.0.0.1:8000/docs`.
+API docs are available at `https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net/docs`.
 
 ## Azure Deployment (App Service)
 

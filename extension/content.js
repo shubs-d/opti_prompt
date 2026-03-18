@@ -435,7 +435,7 @@
       const settings = items.opti_settings || {};
       autoOptimizeEnabled = !!settings.autoOptimize;
       preferredMode = settings.mode || "optimize";
-      backendUrl = settings.backendUrl || "http://127.0.0.1:8000";
+      backendUrl = settings.backendUrl || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
       useGepa = settings.useGepa ?? true;
       gepaGenerations = Number(settings.gepaGenerations ?? 6);
       gepaPopulationSize = Number(settings.gepaPopulationSize ?? 6);
@@ -500,7 +500,7 @@
         const next = changes.opti_settings.newValue || {};
         autoOptimizeEnabled = !!next.autoOptimize;
         preferredMode = next.mode || "optimize";
-        backendUrl = next.backendUrl || "http://127.0.0.1:8000";
+        backendUrl = next.backendUrl || "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
         useGepa = next.useGepa ?? true;
         gepaGenerations = Number(next.gepaGenerations ?? 6);
         gepaPopulationSize = Number(next.gepaPopulationSize ?? 6);

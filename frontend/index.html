@@ -267,7 +267,7 @@
 const qs = new URLSearchParams(window.location.search);
 const apiOverride = qs.get("api");
 const sameOrigin = window.location.origin && window.location.origin.startsWith("http");
-const API = apiOverride || (sameOrigin ? window.location.origin : "http://127.0.0.1:8000");
+const API = apiOverride || (sameOrigin ? window.location.origin : "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net");
 const aggrSlider = document.getElementById("aggr");
 const aggrVal = document.getElementById("aggrVal");
 const autoCheckbox = document.getElementById("autoMode");
@@ -329,7 +329,7 @@ async function run() {
     if (blocked) {
       alert(
         "Request blocked by browser/extension. Try one of these:\n" +
-        "1) Open frontend from same origin: http://127.0.0.1:8000/frontend/\n" +
+        "1) Open frontend from same origin: https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net/frontend/\n" +
         "2) Disable ad-block/privacy shield for localhost\n" +
         "3) Reload page after allowing localhost requests"
       );
@@ -391,7 +391,7 @@ async function loadHistory() {
   } catch (e) {
     console.error("History load failed:", e);
     const tbody = document.getElementById("history-body");
-    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--red);">Cannot load history. Open UI via http://127.0.0.1:8000/frontend/ or disable blocker for localhost.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--red);">Cannot load history. Open UI via https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net/frontend/ or disable blocker for this domain.</td></tr>';
   }
 }
 

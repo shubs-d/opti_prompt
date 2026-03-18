@@ -9,15 +9,15 @@
 (() => {
   "use strict";
 
-  const BUTTON_ID    = "optiprompt-inject-btn";
-  const DROPDOWN_ID  = "optiprompt-dropdown";
-  const PANEL_ID     = "optiprompt-result-panel";
-  const TOAST_ID     = "optiprompt-toast";
+  const BUTTON_ID = "optiprompt-inject-btn";
+  const DROPDOWN_ID = "optiprompt-dropdown";
+  const PANEL_ID = "optiprompt-result-panel";
+  const TOAST_ID = "optiprompt-toast";
   const AUTO_DEBOUNCE_MS = 1200;
 
   let autoOptimizeEnabled = false;
   let preferredMode = "optimize";
-  let backendUrl = "http://127.0.0.1:8000";
+  let backendUrl = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
   let useGepa = true;
   let gepaGenerations = 6;
   let gepaPopulationSize = 6;
@@ -25,6 +25,13 @@
   let autoOptimizeTimer = null;
   let lastAutoOptimizedText = "";
   let isProgrammaticEdit = false;
+
+  /* ---------------------------------------------------------------- */
+  /* Utility: Check Context                                            */
+  /* ---------------------------------------------------------------- */
+  function isContextValid() {
+    return typeof chrome !== "undefined" && chrome.runtime && !!chrome.runtime.id;
+  }
 
   /* ---------------------------------------------------------------- */
   /* Textarea selectors per site                                       */
@@ -54,7 +61,7 @@
   function getHost() {
     const h = location.hostname;
     if (h.includes("chatgpt.com")) return "chatgpt.com";
-    if (h.includes("claude.ai"))   return "claude.ai";
+    if (h.includes("claude.ai")) return "claude.ai";
     if (h.includes("gemini.google.com")) return "gemini.google.com";
     if (h.includes("perplexity.ai")) return "www.perplexity.ai";
     return null;
@@ -151,8 +158,8 @@
 
     const modes = [
       { mode: "optimize", icon: "⚡", label: "Optimize" },
-      { mode: "enhance",  icon: "✨", label: "Enhance" },
-      { mode: "both",     icon: "⚡✨", label: "Optimize + Enhance" },
+      { mode: "enhance", icon: "✨", label: "Enhance" },
+      { mode: "both", icon: "⚡✨", label: "Optimize + Enhance" },
     ];
 
     modes.forEach(({ mode, icon, label }) => {
@@ -196,6 +203,11 @@
   }
 
   async function handleOptimizeWithOptions(mode = "optimize", options = {}) {
+    if (!isContextValid()) {
+      showToast("Extension updated. Please refresh the web page.", true);
+      return;
+    }
+
     const textbox = findTextbox();
     if (!textbox) {
       showToast("Cannot find the chat textbox.", true);
@@ -291,11 +303,11 @@
     panel.className = "optiprompt-panel";
 
     const tokensBefore = data.original_token_count ?? "—";
-    const tokensAfter  = data.compressed_token_count ?? "—";
-    const reduction    = data.token_reduction_percent?.toFixed(1) ?? "—";
-    const similarity   = data.evaluation?.semantic_similarity?.toFixed(4) ?? "—";
-    const density      = data.density?.density_score?.toFixed(4) ?? "—";
-    const modeLabel    = mode === "both"
+    const tokensAfter = data.compressed_token_count ?? "—";
+    const reduction = data.token_reduction_percent?.toFixed(1) ?? "—";
+    const similarity = data.evaluation?.semantic_similarity?.toFixed(4) ?? "—";
+    const density = data.density?.density_score?.toFixed(4) ?? "—";
+    const modeLabel = mode === "both"
       ? "Optimize + Enhance"
       : mode.charAt(0).toUpperCase() + mode.slice(1);
     const diffHtml = buildDiffHtml(data.diff || {});
@@ -418,6 +430,7 @@
   }
 
   function loadSettings() {
+    if (!isContextValid()) return;
     chrome.storage.local.get(["opti_settings"], (items) => {
       const settings = items.opti_settings || {};
       autoOptimizeEnabled = !!settings.autoOptimize;
@@ -469,7 +482,7 @@
     if (!container || !textbox) return;
 
     const rect = textbox.getBoundingClientRect();
-    container.style.top  = `${window.scrollY + rect.top - 40}px`;
+    container.style.top = `${window.scrollY + rect.top - 40}px`;
     container.style.left = `${window.scrollX + rect.right - container.offsetWidth}px`;
   }
 
@@ -477,6 +490,7 @@
   /* Observer — wait for textbox to appear in SPA                      */
   /* ---------------------------------------------------------------- */
   function init() {
+    if (!isContextValid()) return;
     const host = getHost();
     if (!host) return;
     loadSettings();

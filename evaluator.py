@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
+import tiktoken
+
 from genome import Genome
 
 
@@ -22,8 +24,11 @@ GLOBAL_PAIR_CACHE: Dict[str, str] = {}
 
 
 
+TOKENIZER = tiktoken.get_encoding("cl100k_base")
+
+
 def _token_count(text: str) -> int:
-    return max(1, len(text.split()))
+    return max(1, len(TOKENIZER.encode(text)))
 
 
 
@@ -61,6 +66,22 @@ def _structure_penalty(original: str, compressed: str) -> float:
 
 
 
+def _f1(precision: float, recall: float) -> float:
+    if precision + recall == 0.0:
+        return 0.0
+    return 2.0 * precision * recall / (precision + recall)
+
+
+def _set_pr_f1(original_set: set[str], compressed_set: set[str]) -> float:
+    """Return F1 score for set overlap (defaults to 1.0 when both sets empty)."""
+    if not original_set and not compressed_set:
+        return 1.0
+    overlap = len(original_set & compressed_set)
+    recall = overlap / len(original_set) if original_set else 0.0
+    precision = overlap / len(compressed_set) if compressed_set else 0.0
+    return _f1(precision, recall)
+
+
 def _drift_score(original: str, compressed: str) -> float:
     jaccard = _jaccard_similarity(original, compressed)
 
@@ -69,11 +90,11 @@ def _drift_score(original: str, compressed: str) -> float:
     num_o = _extract_numbers(original)
     num_c = _extract_numbers(compressed)
 
-    ent_pres = 1.0 if not ent_o else len(ent_o & ent_c) / len(ent_o)
-    num_pres = 1.0 if not num_o else len(num_o & num_c) / len(num_o)
+    ent_f1 = _set_pr_f1(ent_o, ent_c)
+    num_f1 = _set_pr_f1(num_o, num_c)
 
     # Drift is lower when lexical overlap and key-token preservation are high.
-    similarity = 0.55 * jaccard + 0.30 * ent_pres + 0.15 * num_pres
+    similarity = 0.55 * jaccard + 0.30 * ent_f1 + 0.15 * num_f1
     return max(0.0, min(1.0, 1.0 - similarity))
 
 
@@ -83,30 +104,39 @@ def _pair_key(prompt: str, genome_key: str) -> str:
 
 
 
-def compress_with_cache(genome: Genome, prompt: str, use_cache: bool = True) -> str:
+def compress_with_cache(
+    genome: Genome, prompt: str, use_cache: bool = True,
+) -> Tuple[str, bool]:
+    """Return (compressed_text, is_new) — is_new is True when a fresh compression was performed."""
     if not use_cache:
-        return genome.compress(prompt, use_cache=False)
+        return genome.compress(prompt, use_cache=False), True
 
     key = _pair_key(prompt, genome.as_key())
     if key in GLOBAL_PAIR_CACHE:
-        return GLOBAL_PAIR_CACHE[key]
+        return GLOBAL_PAIR_CACHE[key], False
 
     compressed = genome.compress(prompt, use_cache=True)
     GLOBAL_PAIR_CACHE[key] = compressed
-    return compressed
+    return compressed, True
 
 
 
-def evaluate_genome(genome: Genome, prompts: List[str], use_cache: bool = True) -> EvalResult:
+def evaluate_genome(
+    genome: Genome, prompts: List[str], use_cache: bool = True,
+) -> Tuple[EvalResult, Dict[str, str]]:
     reductions: List[float] = []
     drifts: List[float] = []
     penalties: List[float] = []
+    local_new_cache: Dict[str, str] = {}
 
     ex_orig = prompts[0]
     ex_comp = ""
 
     for i, prompt in enumerate(prompts):
-        compressed = compress_with_cache(genome, prompt, use_cache=use_cache)
+        compressed, is_new = compress_with_cache(genome, prompt, use_cache=use_cache)
+        if is_new:
+            key = _pair_key(prompt, genome.as_key())
+            local_new_cache[key] = compressed
         if i == 0:
             ex_comp = compressed
 
@@ -131,7 +161,7 @@ def evaluate_genome(genome: Genome, prompts: List[str], use_cache: bool = True) 
     # Gentle smoothing keeps values stable across small sample variance.
     fitness = math.tanh(fitness)
 
-    return EvalResult(
+    result = EvalResult(
         reduction_percent=100.0 * reduction_mean,
         drift_score=drift_mean,
         structure_penalty=penalty_mean,
@@ -139,10 +169,13 @@ def evaluate_genome(genome: Genome, prompts: List[str], use_cache: bool = True) 
         example_original=ex_orig,
         example_compressed=ex_comp,
     )
+    return result, local_new_cache
 
 
 
-def evaluate_genome_worker(args: Tuple[Genome, List[str], bool]) -> Tuple[Genome, EvalResult]:
+def evaluate_genome_worker(
+    args: Tuple[Genome, List[str], bool],
+) -> Tuple[Genome, EvalResult, Dict[str, str]]:
     genome, prompts, use_cache = args
-    result = evaluate_genome(genome, prompts=prompts, use_cache=use_cache)
-    return genome, result
+    result, local_cache = evaluate_genome(genome, prompts=prompts, use_cache=use_cache)
+    return genome, result, local_cache

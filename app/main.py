@@ -54,7 +54,8 @@ ALLOWED_ORIGINS = [
 ]
 
 # Chrome extensions send Origin: chrome-extension://<id>
-ALLOWED_ORIGIN_REGEX = r"^chrome-extension://.*$"
+# Firefox extensions send Origin: moz-extension://<id>
+ALLOWED_ORIGIN_REGEX = r"^(chrome-extension|moz-extension)://.*$"
 
 
 # ------------------------------------------------------------------

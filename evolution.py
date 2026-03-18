@@ -53,7 +53,8 @@ def _evaluate_population(
     else:
         results = [evaluate_genome_worker(job) for job in jobs]
 
-    return {g: r for g, r in results}
+    # Worker now returns (genome, result, local_cache); discard local_cache here.
+    return {g: r for g, r, _cache in results}
 
 
 

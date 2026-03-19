@@ -6,7 +6,11 @@
  * that content scripts face on third-party pages.
  */
 
-const DEFAULT_API_BASE = "https://optiprompt-gqd9hqf6dffvaacb.eastasia-01.azurewebsites.net";
+// Configuration: Switch between local testing and production (Modal)
+// const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://shubs-d--optiprompt-backend-serve.modal.run";
+
+const DEFAULT_API_BASE = API_BASE_URL;
 const PREDICTION_CACHE = new Map();
 const PREDICTION_CACHE_MAX = 120;
 

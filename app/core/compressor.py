@@ -21,11 +21,56 @@ FLUFF_PATTERNS = [
     r"\bcan\s+you\s+help\s+me\b",
     r"\bcan\s+you\b",
     r"\bi\s+would\s+like\s+to\b",
+    r"\bi\s+need\s+you\s+to\b",
+    r"\bi\s+want\s+you\s+to\b",
     r"\bsorry\s+but\b",
+    r"\bsorry\b",
     r"\bact\s+as\s+a\b",
     r"\bwould\s+you\b",
     r"\bkindly\b",
+    r"\bjust\b",
+    r"\bif\s+possible\b",
+    r"\bactually\b",
+    r"\bbasically\b",
+    r"\bit\s+would\s+be\s+great\s+if\b",
+    r"\bi\s+was\s+wondering\s+if\b",
+    r"\bi\s+am\s+looking\s+for\b",
+    r"\bdo\s+you\s+think\s+you\s+could\b",
+    r"\bi\s+would\s+appreciate\s+it\s+if\b",
+    r"\bif\s+you\s+don'?t\s+mind\b",
+    r"\bwould\s+it\s+be\s+possible\s+to\b",
 ]
+
+
+# Structural simplification rules — ordered regex substitutions.
+STRUCTURE_RULES: List[tuple] = [
+    (r"can\s+you\s+(?:please\s+)?explain\s+(?:to\s+me\s+)?how\s+(?:I\s+can|to)\s+", ""),
+    (r"can\s+you\s+(?:please\s+)?(?:help\s+me\s+)?(?:to\s+)?", ""),
+    (r"please\s+(?:explain|describe|show)\s+(?:to\s+me\s+)?(?:how\s+(?:to|I\s+can)\s+)?", ""),
+    (r"how\s+(?:can|do)\s+I\s+", ""),
+    (r"I\s+(?:want|need)\s+(?:to|you\s+to)\s+", ""),
+    (r"could\s+you\s+(?:please\s+)?(?:help\s+me\s+)?", ""),
+    (r"would\s+you\s+(?:be\s+able\s+to\s+)?", ""),
+    (r"is\s+it\s+possible\s+(?:to|for\s+you\s+to)\s+", ""),
+    (r"I\s+would\s+like\s+(?:to|you\s+to)\s+", ""),
+    (r"I\s+am\s+trying\s+to\s+", ""),
+    (r"what\s+is\s+the\s+(?:best\s+)?way\s+to\s+", ""),
+]
+
+
+def structurally_simplify(text: str) -> str:
+    """Convert verbose natural language into compact instruction form.
+
+    Example::
+
+        >>> structurally_simplify("can you please explain how I can write a python function")
+        "write a python function"
+    """
+    result = text
+    for pattern, replacement in STRUCTURE_RULES:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    result = re.sub(r"\s{2,}", " ", result).strip()
+    return result if result else text
 
 
 def clean_prompt_text(text: str) -> str:

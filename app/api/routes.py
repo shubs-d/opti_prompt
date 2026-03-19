@@ -13,19 +13,25 @@ from app.api.schemas import (
     CandidateResponse,
     CandidateScoreResponse,
     ComputeScoreResponse,
+    CostResponse,
     DecisionResponse,
     DensificationResponse,
     DensityResponse,
     DiffResponse,
     DimensionScoreResponse,
+    EfficiencyMetricsResponse,
     EvaluatePromptRequest,
     EvaluatePromptResponse,
     EvaluationResponse,
+    EvolutionVariantResponse,
     GepaRepairResponse,
     IntentResponse,
     OptimizeAndStoreResponse,
     OptimizeRequest,
     OptimizeResponse,
+    PipelineRequest,
+    PipelineResponse,
+    PipelineTemplateResponse,
     PromptCreateRequest,
     PromptListResponse,
     PromptRecord,
@@ -509,6 +515,9 @@ async def optimize(request: OptimizeRequest) -> dict:
             request.max_total_compression_percent,
         )
 
+        selected_text = result["selected_text"]
+        original_prompt = result["original_prompt"]
+
         # Build candidate list for response
         candidate_responses = None
         if result["candidates"] is not None:
@@ -549,12 +558,79 @@ async def optimize(request: OptimizeRequest) -> dict:
         if result.get("gepa_repair") is not None:
             gepa_resp = GepaRepairResponse(**result["gepa_repair"])
 
+        # ---- v3: Evaluation Engine (CQS metrics) ----
+        from app.evaluation.semantic import compute_semantic_similarity
+        from app.evaluation.metrics import instruction_retention_score, information_density
+        from app.evaluation.scoring import compression_quality_score
+
+        sem_sim = compute_semantic_similarity(original_prompt, selected_text)
+        retention = instruction_retention_score(original_prompt, selected_text)
+        info_density = information_density(selected_text)
+        comp_ratio = result["density"].compression_ratio if result["density"] is not None else 1.0
+        cqs = compression_quality_score(sem_sim, retention, info_density, comp_ratio)
+
+        metrics_resp = EfficiencyMetricsResponse(
+            token_reduction_percent=round(result["token_reduction_percent"], 4),
+            semantic_similarity=round(sem_sim, 6),
+            instruction_retention=round(retention, 6),
+            information_density=round(info_density, 6),
+            compression_quality_score=cqs,
+        )
+
+        # ---- v3: Cost Predictor ----
+        from app.cost.cost_model import compare_costs
+
+        cost_data = compare_costs(original_prompt, selected_text)
+        cost_resp = CostResponse(**cost_data)
+
+        # ---- v3: 4-class Intent Classifier ----
+        from app.intent.classifier import classify_intent
+
+        intent_config = classify_intent(original_prompt)
+        prompt_intent = intent_config.label
+
+        # ---- v3: Evolutionary Optimization Variants ----
+        from app.evolution.engine import EvolutionaryOptimizer
+
+        evo_optimizer = EvolutionaryOptimizer()
+        evo_result = evo_optimizer.optimize(original_prompt, intent_label=None)
+
+        evolution_variants = [
+            EvolutionVariantResponse(
+                strategy=v.strategy,
+                optimized_prompt=v.optimized_prompt,
+                semantic_similarity=v.semantic_similarity,
+                instruction_retention=v.instruction_retention,
+                information_density=v.information_density,
+                compression_ratio=v.compression_ratio,
+                cqs=v.cqs,
+            )
+            for v in evo_result.variants
+        ]
+
+        # If evolutionary optimizer found a better candidate, use it
+        if evo_result.best.cqs > cqs:
+            selected_text = evo_result.best.optimized_prompt
+            sem_sim = evo_result.best.semantic_similarity
+            retention = evo_result.best.instruction_retention
+            info_density = evo_result.best.information_density
+            cqs = evo_result.best.cqs
+            metrics_resp = EfficiencyMetricsResponse(
+                token_reduction_percent=round((1.0 - evo_result.best.compression_ratio) * 100.0, 4),
+                semantic_similarity=sem_sim,
+                instruction_retention=retention,
+                information_density=info_density,
+                compression_quality_score=cqs,
+            )
+            cost_data = compare_costs(original_prompt, selected_text)
+            cost_resp = CostResponse(**cost_data)
+
         response = OptimizeResponse(
             mode=result["mode"],
-            compressed_prompt=result["selected_text"],
+            compressed_prompt=selected_text,
             original_token_count=result["density"].original_token_count if result["density"] is not None else 0,
             compressed_token_count=result["density"].compressed_token_count if result["density"] is not None else 0,
-            compression_ratio=round(result["density"].compression_ratio, 4) if result["density"] is not None else 1.0,
+            compression_ratio=round(comp_ratio, 4),
             token_reduction_percent=round(result["token_reduction_percent"], 4),
             intent=IntentResponse(**result["intent"]),
             diff=DiffResponse(**result["diff"].to_dict()),
@@ -565,10 +641,15 @@ async def optimize(request: OptimizeRequest) -> dict:
             candidates=candidate_responses,
             selection=selection_resp,
             gepa_repair=gepa_resp,
+            # v3 fields
+            metrics=metrics_resp,
+            cost=cost_resp,
+            prompt_intent=prompt_intent,
+            evolution_variants=evolution_variants,
         )
         payload = response.model_dump()
-        payload["original_prompt"] = result["original_prompt"]
-        payload["optimized_prompt"] = result["selected_text"]
+        payload["original_prompt"] = original_prompt
+        payload["optimized_prompt"] = selected_text
         payload["method_used"] = result["method_used"]
         return payload
     except Exception as exc:
@@ -846,4 +927,46 @@ async def evaluate_prompt(request: EvaluatePromptRequest) -> EvaluatePromptRespo
         )
     except Exception as exc:
         logger.exception("Prompt evaluation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ==================================================================
+# POST /optimize-pipeline  (multi-stage pipeline)
+# ==================================================================
+
+@router.post("/optimize-pipeline", response_model=PipelineResponse)
+async def optimize_pipeline(request: PipelineRequest) -> PipelineResponse:
+    """Run the full 9-stage prompt optimisation pipeline.
+
+    Stages: regex cleaning → structural simplification → tokenization +
+    surprisal → GEPA scoring → adaptive pruning → reconstruction →
+    semantic validation → metrics → template extraction.
+    """
+    try:
+        from app.core.pipeline import PromptPipeline
+
+        model_loader = ModelLoader.get_instance()
+        pipeline = PromptPipeline(model_loader)
+        result = pipeline.run(
+            text=request.prompt,
+            intent_label=request.intent_override,
+        )
+
+        return PipelineResponse(
+            original_prompt=result.original_prompt,
+            optimized_prompt=result.optimized_prompt,
+            original_token_count=result.original_token_count,
+            optimized_token_count=result.optimized_token_count,
+            compression_ratio=round(result.compression_ratio, 4),
+            information_density=round(result.information_density, 4),
+            semantic_similarity=round(result.semantic_similarity, 4),
+            pipeline_accepted=result.pipeline_accepted,
+            template=PipelineTemplateResponse(
+                template=result.template.get("template", ""),
+                variables=result.template.get("variables", []),
+            ),
+            stages_applied=result.stages_applied,
+        )
+    except Exception as exc:
+        logger.exception("Pipeline optimisation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

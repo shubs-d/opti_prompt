@@ -287,6 +287,43 @@ class GepaRepairResponse(BaseModel):
 
 
 # ------------------------------------------------------------------
+# Efficiency engine sub-models — cost, CQS metrics
+# ------------------------------------------------------------------
+
+class CostResponse(BaseModel):
+    """Token-based compute cost comparison."""
+
+    original_cost: float
+    optimized_cost: float
+    savings_percent: float
+    original_tokens: int = 0
+    optimized_tokens: int = 0
+    model: str = "gpt-4"
+
+
+class EfficiencyMetricsResponse(BaseModel):
+    """Advanced evaluation metrics including CQS."""
+
+    token_reduction_percent: float
+    semantic_similarity: float
+    instruction_retention: float
+    information_density: float
+    compression_quality_score: float
+
+
+class EvolutionVariantResponse(BaseModel):
+    """Score details for a single evolutionary variant."""
+
+    strategy: str
+    optimized_prompt: str
+    semantic_similarity: float
+    instruction_retention: float
+    information_density: float
+    compression_ratio: float
+    cqs: float
+
+
+# ------------------------------------------------------------------
 # Top-level response — v2 /optimize (superset of v1)
 # ------------------------------------------------------------------
 
@@ -309,6 +346,11 @@ class OptimizeResponse(BaseModel):
     candidates: Optional[List[CandidateResponse]] = None
     selection: Optional[SelectionResponse] = None
     gepa_repair: Optional[GepaRepairResponse] = None
+    # ---- v3 efficiency engine additions ----
+    metrics: Optional[EfficiencyMetricsResponse] = None
+    cost: Optional[CostResponse] = None
+    prompt_intent: Optional[str] = None
+    evolution_variants: Optional[List[EvolutionVariantResponse]] = None
 
 
 # ------------------------------------------------------------------
@@ -448,3 +490,50 @@ class AnalyzeResponse(BaseModel):
     mode: str = "both"
     intent_detail: Optional[IntentResponse] = None
     density: Optional[DensityResponse] = None
+
+
+# ------------------------------------------------------------------
+# Multi-stage pipeline models
+# ------------------------------------------------------------------
+
+class PipelineRequest(BaseModel):
+    """Request body for ``POST /optimize-pipeline``."""
+
+    prompt: str = Field(
+        ...,
+        min_length=1,
+        description="The original prompt text to optimise.",
+    )
+    intent_override: Optional[Literal[
+        "INFORMATIONAL",
+        "CREATIVE",
+        "TECHNICAL",
+        "ANALYTICAL",
+        "CONVERSATIONAL",
+    ]] = Field(
+        default=None,
+        description="Optional manual intent override for adaptive pruning.",
+    )
+
+
+class PipelineTemplateResponse(BaseModel):
+    """Template extraction sub-section."""
+
+    template: str
+    variables: List[str] = Field(default_factory=list)
+
+
+class PipelineResponse(BaseModel):
+    """Response for ``POST /optimize-pipeline``."""
+
+    original_prompt: str
+    optimized_prompt: str
+    original_token_count: int
+    optimized_token_count: int
+    compression_ratio: float
+    information_density: float
+    semantic_similarity: float
+    pipeline_accepted: bool
+    template: PipelineTemplateResponse
+    stages_applied: List[str] = Field(default_factory=list)
+

@@ -79,6 +79,7 @@ async function handleOptimize({
   enforce_compression_window,
   min_total_compression_percent,
   max_total_compression_percent,
+  output_size,
   backend_url,
 }) {
   const apiBase = await getApiBase(backend_url);
@@ -97,6 +98,7 @@ async function handleOptimize({
   if (max_total_compression_percent != null) {
     body.max_total_compression_percent = Number(max_total_compression_percent);
   }
+  if (output_size) body.output_size = output_size;
 
   const res = await fetch(`${apiBase}/optimize`, {
     method: "POST",

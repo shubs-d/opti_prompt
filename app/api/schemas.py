@@ -29,6 +29,14 @@ class OptimizeRequest(BaseModel):
         default="optimize",
         description="Optimization mode: compression-focused, enhancement-focused, or both.",
     )
+    output_size: Literal["short", "moderate", "long"] = Field(
+        default="moderate",
+        description=(
+            "Desired output verbosity. 'short' prunes aggressively and appends "
+            "a concise-answer instruction; 'long' preserves most content and "
+            "requests a detailed answer; 'moderate' is the balanced default."
+        ),
+    )
     aggressiveness: Optional[float] = Field(
         default=None,
         ge=0.0,

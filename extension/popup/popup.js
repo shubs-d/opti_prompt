@@ -52,7 +52,8 @@
     btnCopy: $("btnCopy"),
     btnReplace: $("btnReplace"),
     successOverlay: $("successOverlay"),
-    modeBtns: $$(".mode-btn"),
+    modeBtns: $$(".mode-btn:not(.output-size-btn):not(.analyze-mode-btn)"),
+    outputSizeBtns: $$(".output-size-btn"),
     qualityScore: $("qualityScore"),
     qualityBadge: $("qualityBadge"),
     qClarity: $("qClarity"),
@@ -109,6 +110,7 @@
     analyzeMode: "both",
     intentOverride: "",
     analyzeIntentOverride: "",
+    outputSize: "moderate",
     lastOptimizedPrompt: "",
     lastCompressed: "",
     lastAnalyzedOptimized: "",
@@ -150,6 +152,14 @@
       btn.addEventListener("click", () => {
         refs.modeBtns.forEach((item) => item.classList.toggle("active", item === btn));
         state.mode = btn.dataset.mode;
+        saveSettings();
+      });
+    });
+
+    refs.outputSizeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        refs.outputSizeBtns.forEach((item) => item.classList.toggle("active", item === btn));
+        state.outputSize = btn.dataset.size;
         saveSettings();
       });
     });
@@ -431,6 +441,7 @@
       gepa_generations: Number(refs.gepaGenerations.value || 6),
       gepa_population_size: Number(refs.gepaPopulationSize.value || 6),
       gepa_time_budget_seconds: Number(refs.gepaTimeBudget.value || 1.5),
+      output_size: state.outputSize,
     };
     if (state.intentOverride) payload.intent_override = state.intentOverride;
     if (!refs.autoMode.checked) payload.aggressiveness = Number(refs.aggr.value);
@@ -984,6 +995,9 @@
       refs.intentOverride.value = state.intentOverride;
       refs.analyzeIntentOverride.value = state.analyzeIntentOverride;
       refs.modeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === state.mode));
+
+      state.outputSize = settings.outputSize || "moderate";
+      refs.outputSizeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.size === state.outputSize));
     });
   }
 
@@ -1001,6 +1015,7 @@
         gepaTimeBudget: Number(refs.gepaTimeBudget.value || 1.5),
         intentOverride: state.intentOverride,
         analyzeIntentOverride: state.analyzeIntentOverride,
+        outputSize: state.outputSize,
       },
     });
   }

@@ -22,6 +22,7 @@
   let gepaGenerations = 6;
   let gepaPopulationSize = 6;
   let gepaTimeBudget = 1.5;
+  let outputSize = "moderate";
   let autoOptimizeTimer = null;
   let lastAutoOptimizedText = "";
   let isProgrammaticEdit = false;
@@ -240,6 +241,7 @@
               gepa_generations: gepaGenerations,
               gepa_population_size: gepaPopulationSize,
               gepa_time_budget_seconds: gepaTimeBudget,
+              output_size: outputSize,
             },
           },
           (response) => {
@@ -440,6 +442,7 @@
       gepaGenerations = Number(settings.gepaGenerations ?? 6);
       gepaPopulationSize = Number(settings.gepaPopulationSize ?? 6);
       gepaTimeBudget = Number(settings.gepaTimeBudget ?? 1.5);
+      outputSize = settings.outputSize || "moderate";
     });
   }
 
@@ -505,6 +508,7 @@
         gepaGenerations = Number(next.gepaGenerations ?? 6);
         gepaPopulationSize = Number(next.gepaPopulationSize ?? 6);
         gepaTimeBudget = Number(next.gepaTimeBudget ?? 1.5);
+        outputSize = next.outputSize || "moderate";
       }
     });
 

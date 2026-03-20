@@ -168,6 +168,7 @@ async def _run_pipeline(
     enforce_compression_window: bool = CONTROLLED_ENFORCE_COMPRESSION_WINDOW,
     min_total_compression_percent: float = CONTROLLED_MIN_TOTAL_COMPRESSION_PERCENT,
     max_total_compression_percent: float = CONTROLLED_MAX_TOTAL_COMPRESSION_PERCENT,
+    output_size: str = "moderate",
 ) -> dict:
     """Execute the full prompt-compiler pipeline.
 
@@ -182,6 +183,20 @@ async def _run_pipeline(
       4. Decision engine selects the best candidate
       5. Diff + evaluation on the selected output
     """
+    # --- output_size → dynamic compression window override ----------------
+    _SIZE_WINDOWS: dict[str, tuple[float, float]] = {
+        "short": (30.0, 50.0),
+        "moderate": (15.0, 35.0),
+        "long": (5.0, 20.0),
+    }
+    if output_size in _SIZE_WINDOWS:
+        size_min, size_max = _SIZE_WINDOWS[output_size]
+        # Only override if the caller didn’t explicitly set custom values
+        if min_total_compression_percent == CONTROLLED_MIN_TOTAL_COMPRESSION_PERCENT:
+            min_total_compression_percent = size_min
+        if max_total_compression_percent == CONTROLLED_MAX_TOTAL_COMPRESSION_PERCENT:
+            max_total_compression_percent = size_max
+
     model_loader = ModelLoader.get_instance()
 
     # --- 1. Intent detection & aggressiveness resolution ----------------
@@ -513,6 +528,7 @@ async def optimize(request: OptimizeRequest) -> dict:
             request.enforce_compression_window,
             request.min_total_compression_percent,
             request.max_total_compression_percent,
+            request.output_size,
         )
 
         selected_text = result["selected_text"]
@@ -625,6 +641,16 @@ async def optimize(request: OptimizeRequest) -> dict:
             cost_data = compare_costs(original_prompt, selected_text)
             cost_resp = CostResponse(**cost_data)
 
+        # --- Append output-size response-length suffix -------------------
+        _OUTPUT_SIZE_SUFFIX: dict[str, str] = {
+            "short": "\nAnswer concisely in ~100 words.",
+            "moderate": "\nAnswer in ~300 words with moderate detail.",
+            "long": "\nProvide a detailed, comprehensive answer.",
+        }
+        size_suffix = _OUTPUT_SIZE_SUFFIX.get(request.output_size, "")
+        if size_suffix:
+            selected_text = selected_text.rstrip() + size_suffix
+
         response = OptimizeResponse(
             mode=result["mode"],
             compressed_prompt=selected_text,
@@ -682,6 +708,7 @@ async def optimize_and_store(request: OptimizeRequest) -> OptimizeAndStoreRespon
             request.enforce_compression_window,
             request.min_total_compression_percent,
             request.max_total_compression_percent,
+            request.output_size,
         )
         evaluation = result["evaluation"]
         decision = result["decision"]

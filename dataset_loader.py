@@ -22,23 +22,21 @@ def _word_count(text: str) -> int:
 
 
 def _clean_text(text: str) -> str:
-    lines = [ln.strip() for ln in text.splitlines()]
-    joined = " ".join(x for x in lines if x)
-    return " ".join(joined.split())
+    return " ".join(text.split())
 
 
-def _chunk_to_target_words(text: str, target_words: int) -> Optional[str]:
+def _chunk_to_target_words(text: str, target_words: int, rng: random.Random) -> Optional[str]:
     words = text.split()
     if len(words) < target_words:
         return None
 
     start_max = max(0, len(words) - target_words)
-    start = 0 if start_max == 0 else random.randint(0, start_max)
+    start = rng.randint(0, start_max)
     chunk = words[start : start + target_words]
     return " ".join(chunk)
 
 
-def _synthetic_paragraph(topic: str, words: int) -> str:
+def _synthetic_paragraph(topic: str, words: int, rng: random.Random) -> str:
     sentence_pool = [
         f"This section analyzes {topic} from technical, social, and operational angles.",
         "The objective is to provide practical guidance with measurable outcomes and clear tradeoffs.",
@@ -58,14 +56,18 @@ def _synthetic_paragraph(topic: str, words: int) -> str:
     ]
 
     result: List[str] = []
-    while _word_count(" ".join(result)) < words:
-        result.append(random.choice(sentence_pool))
+    current_words = 0
+    while current_words < words:
+        sentence = rng.choice(sentence_pool)
+        result.append(sentence)
+        current_words += _word_count(sentence)
+        
     out = " ".join(result)
     return " ".join(out.split()[:words])
 
 
 def _build_synthetic_prompts(min_prompts: int, target_words: int, seed: int) -> List[str]:
-    random.seed(seed)
+    rng = random.Random(seed)
     topics = [
         "distributed systems",
         "scientific writing",
@@ -78,13 +80,13 @@ def _build_synthetic_prompts(min_prompts: int, target_words: int, seed: int) -> 
         "public infrastructure",
         "supply chain planning",
     ]
-    return [_synthetic_paragraph(random.choice(topics), target_words) for _ in range(min_prompts)]
+    return [_synthetic_paragraph(rng.choice(topics), target_words, rng) for _ in range(min_prompts)]
 
 
 def load_prompts(config: DatasetConfig | None = None) -> List[str]:
     """Load long-form prompts using Hugging Face datasets with synthetic fallback."""
     cfg = config or DatasetConfig()
-    random.seed(cfg.seed)
+    rng = random.Random(cfg.seed)
 
     try:
         from datasets import load_dataset
@@ -104,13 +106,11 @@ def load_prompts(config: DatasetConfig | None = None) -> List[str]:
             if not text:
                 continue
 
-            chunk = _chunk_to_target_words(text, cfg.target_words)
+            chunk = _chunk_to_target_words(text, cfg.target_words, rng)
             if not chunk:
                 continue
 
-            wc = _word_count(chunk)
-            if abs(wc - cfg.target_words) <= cfg.tolerance:
-                collected.append(chunk)
+            collected.append(chunk)
 
             if len(collected) >= cfg.min_prompts:
                 break

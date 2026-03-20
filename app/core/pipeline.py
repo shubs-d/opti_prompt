@@ -127,6 +127,19 @@ _INTENT_FACTOR: Dict[str, float] = {
     IntentCategory.CONVERSATIONAL.value: 0.7,
 }
 
+# --- Stage 5b: output-size → pruning scale + suffix -------------------
+_OUTPUT_SIZE_PRUNE_SCALE: Dict[str, float] = {
+    "short": 0.85,      # tighter threshold → prune more
+    "moderate": 1.0,    # baseline
+    "long": 1.25,       # looser threshold → prune less
+}
+
+_OUTPUT_SIZE_SUFFIX: Dict[str, str] = {
+    "short": "\nAnswer concisely in ~100 words.",
+    "moderate": "\nAnswer in ~300 words with moderate detail.",
+    "long": "\nProvide a detailed, comprehensive answer.",
+}
+
 # --- Stage 6: minimal grammar reconstruction rules --------------------
 # (pattern, replacement) applied after joining filtered tokens.
 GRAMMAR_RULES: List[Tuple[str, str]] = [
@@ -206,6 +219,7 @@ class PromptPipeline:
         self,
         text: str,
         intent_label: Optional[str] = None,
+        output_size: str = "moderate",
     ) -> PipelineResult:
         """Execute the full 9-stage pipeline on *text*.
 
@@ -213,6 +227,8 @@ class PromptPipeline:
             text: raw user prompt.
             intent_label: optional pre-detected intent label.  When
                 ``None`` the pipeline auto-detects intent.
+            output_size: desired output verbosity — ``'short'``,
+                ``'moderate'``, or ``'long'``.
 
         Returns:
             A ``PipelineResult`` with the optimised prompt, metrics, and
@@ -248,7 +264,7 @@ class PromptPipeline:
             intent_label = intent_result.intent_label
 
         kept_tokens, kept_ids, removed_tokens = self._stage_adaptive_prune(
-            token_strings, input_ids, gepa_scores, intent_label,
+            token_strings, input_ids, gepa_scores, intent_label, output_size,
         )
         stages_applied.append("adaptive_prune")
 
@@ -396,15 +412,17 @@ class PromptPipeline:
         input_ids: Any,
         gepa_scores: List[float],
         intent_label: str,
+        output_size: str = "moderate",
     ) -> Tuple[List[str], List[int], List[str]]:
         """Stage 5 — prune tokens below the intent-aware GEPA threshold."""
         intent_factor = _INTENT_FACTOR.get(intent_label, 0.7)
+        size_scale = _OUTPUT_SIZE_PRUNE_SCALE.get(output_size, 1.0)
 
         if not gepa_scores:
             return tokens, [], []
 
         mean_gepa = sum(gepa_scores) / len(gepa_scores)
-        threshold = mean_gepa * intent_factor
+        threshold = mean_gepa * intent_factor * size_scale
 
         kept_tokens: List[str] = []
         kept_ids: List[int] = []
